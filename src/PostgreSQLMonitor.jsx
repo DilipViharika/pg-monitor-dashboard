@@ -1169,7 +1169,7 @@ const PostgreSQLMonitor = () => {
                   gap: 8,
                   padding: '6px 8px',
                   marginBottom: 2,
-                  borderRadius: 8,
+                  borderRadius: 6,
                   border: 'none',
                   cursor: 'pointer',
                   background: active ? '#e5edf7' : 'transparent',
