@@ -13,7 +13,8 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
-  ChevronLeft,
+  ChevronLeft, 
+  HeartPulse,
   ChevronRight
 } from 'lucide-react';
 import {
@@ -76,7 +77,8 @@ const PostgreSQLMonitor = () => {
     errorRate: 3.2,
     failedQueries: 18,
     deadlockCount: 5,
-    lockWaitTime: 234,
+    lockWaitTime: 234, 
+    clusterHealth: 'Healthy',
     criticalAlerts: 2,
     warningAlerts: 8,
     infoAlerts: 15,
@@ -1249,7 +1251,8 @@ const PostgreSQLMonitor = () => {
             { id: 'overview', label: 'Overview', icon: Activity },
             { id: 'performance', label: 'Performance', icon: Zap },
             { id: 'resources', label: 'Resources', icon: HardDrive },
-            { id: 'reliability', label: 'Reliability', icon: CheckCircle },
+            { id: 'reliability', label: 'Reliability', icon: CheckCircle }, 
+            { id: 'cluster-health', label: 'Cluster Health', icon: HeartPulse },
             { id: 'indexes', label: 'Indexes', icon: TrendingUp }
           ].map(item => {
             const Icon = item.icon;
@@ -1384,12 +1387,12 @@ const PostgreSQLMonitor = () => {
           >
             <div>
               <div style={{ fontSize: 18, fontWeight: 600, color: '#1e293b' }}>Live Monitoring</div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>
-                Queries, resources, locks, and index health
-              </div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>Queries, resources, locks, and index health</div>
             </div>
             <div style={{ textAlign: 'right', fontSize: 12 }}>
               <div style={{ display: 'flex', gap: 16 }}>
+                {/* Removed Cluster Health from here */}
+
                 <div>
                   <div style={{ color: '#64748b', marginBottom: 2 }}>Availability</div>
                   <div style={{ fontWeight: 600, fontSize: 14, color: PRIMARY_GREEN }}>
@@ -1463,6 +1466,7 @@ const PostgreSQLMonitor = () => {
           {activeTab === 'performance' && <PerformanceTab />}
           {activeTab === 'resources' && <ResourcesTab />}
           {activeTab === 'reliability' && <ReliabilityTab />}
+          {activeTab === 'cluster-health' && <ClusterHealthTab />}
           {activeTab === 'indexes' && <IndexesTab />}
         </main>
       </div>
