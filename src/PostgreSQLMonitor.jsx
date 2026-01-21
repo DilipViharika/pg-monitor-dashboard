@@ -1091,7 +1091,7 @@ const PostgreSQLMonitor = () => {
       {/* SIDEBAR */}
       <aside
         style={{
-          width: 260,
+          width: 'auto',
           borderRight: '1px solid #d1d5db',
           padding: '16px 18px',
           background: '#f3f4ff',
@@ -1161,7 +1161,7 @@ const PostgreSQLMonitor = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => window.location.hash = item.id}
                 style={{
                   width: '100%',
                   display: 'flex',
