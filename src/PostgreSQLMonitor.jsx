@@ -534,7 +534,7 @@ const PostgreSQLMonitor = () => {
       <div>
         {sectionCard(
           'Performance Trends (Last 10 Days)',
-          <div style={{ height: 280 }}>
+          <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={last30Days.slice(-10)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -670,7 +670,7 @@ const PostgreSQLMonitor = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}> {/* Adjusted gap for better spacing */}
               <div
                 style={{
-                  padding: 10,
+                  padding: 8,
                   borderRadius: 10,
                   background: '#ffffff',
                   border: '1px solid #d1d5db',
@@ -690,7 +690,7 @@ const PostgreSQLMonitor = () => {
               </div>
               <div
                 style={{
-                  padding: 10,
+                  padding: 8,
                   borderRadius: 10,
                   background: '#ffffff',
                   border: '1px solid #d1d5db',
@@ -710,7 +710,7 @@ const PostgreSQLMonitor = () => {
               </div>
               <div
                 style={{
-                  padding: 10,
+                  padding: 8,
                   borderRadius: 10,
                   background: '#ffffff',
                   border: '1px solid #d1d5db',
