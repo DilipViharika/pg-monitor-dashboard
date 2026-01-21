@@ -1354,7 +1354,7 @@ const PostgreSQLMonitor = () => {
             ) : (
               <>
                 <ChevronLeft size={14} />
-                <span>Hide Views</span>
+                <span> </span>
               </>
             )}
           </button>
