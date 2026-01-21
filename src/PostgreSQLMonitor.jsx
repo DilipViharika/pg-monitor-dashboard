@@ -1173,31 +1173,6 @@ const PostgreSQLMonitor = () => {
         </div>
 
         <div>
-          style={{
-            padding: '10px 12px',
-            borderRadius: 10,
-            background: '#ffffff',
-            border: '1px solid #d1d5db'
-          }}
-        >
-          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
-            Disk Usage
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-            <span>Total Disk</span>
-            <span>{metrics.diskTotal}GB</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-            <span>Used Disk</span>
-            <span>{(metrics.diskTotal - metrics.diskAvailable).toFixed(0)}GB</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-            <span>Free Disk</span>
-            <span>{metrics.diskAvailable}GB</span>
-          </div>
-        </div>
-
-        <div>
           <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>Views</div>
           {[
             { id: 'overview', label: 'Overview', icon: Activity },
