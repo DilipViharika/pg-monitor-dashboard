@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Activity,
   Database,
@@ -33,6 +33,11 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts';
+
+const PRIMARY_BLUE = '#2563eb';
+const PRIMARY_GREEN = '#22c55e';
+const PRIMARY_ORANGE = '#f97316';
+const PRIMARY_RED = '#ef4444';
 
 const PostgreSQLMonitor = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -169,12 +174,10 @@ const PostgreSQLMonitor = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // optional: initialize activeTab from URL hash
+  // optional URL hash sync
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (hash) {
-      setActiveTab(hash);
-    }
+    if (hash) setActiveTab(hash);
   }, []);
 
   const formatUptime = seconds => {
@@ -183,15 +186,41 @@ const PostgreSQLMonitor = () => {
     return `${days}d ${hours}h`;
   };
 
-  // layout helpers
+  const sparklineData = useMemo(
+    () =>
+      last30Days.slice(-7).map(d => ({
+        date: d.date,
+        qps: d.qps,
+        avgQuery: d.avgQuery
+      })),
+    [last30Days]
+  );
+
+  // shared containers
+
+  const TabGrid = ({ children }) => (
+    <div
+      style={{
+        width: '100%',
+        maxWidth: 1200,
+        margin: '0 auto',
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1fr)',
+        rowGap: 16
+      }}
+    >
+      {children}
+    </div>
+  );
+
   const sectionCard = (title, children, rightNode) => (
     <div
       style={{
-        background: 'linear-gradient(135deg,#ffffff 0%,#f3f4ff 60%,#e5edf7 100%)',
-        borderRadius: 16,
+        background: 'linear-gradient(135deg,#ffffff 0%,#f4f5ff 40%,#e5edf7 100%)',
+        borderRadius: 18,
         border: '1px solid #d1d5db',
-        padding: '14px 16px',
-        boxShadow: '0 10px 30px rgba(15,23,42,0.08)'
+        padding: '14px 16px 18px',
+        boxShadow: '0 12px 32px rgba(15,23,42,0.10)'
       }}
     >
       <div
@@ -209,11 +238,11 @@ const PostgreSQLMonitor = () => {
     </div>
   );
 
-  const MetricCard = ({ icon: Icon, title, value, unit, subtitle }) => (
+  const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color, showSpark }) => (
     <div
       style={{
         background: '#ffffff',
-        borderRadius: 14,
+        borderRadius: 16,
         border: '1px solid #d1d5db',
         padding: '10px 12px',
         display: 'flex',
@@ -221,22 +250,39 @@ const PostgreSQLMonitor = () => {
         gap: 4
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 10,
-            background: '#e5edf7',
-            border: '1px solid #d1d5db',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          <Icon size={14} color="#0f172a" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 10,
+              background: '#e5edf7',
+              border: '1px solid #d1d5db',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Icon size={14} color={color || '#0f172a'} />
+          </div>
+          <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>{title}</span>
         </div>
-        <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>{title}</span>
+        {showSpark && sparklineData.length > 1 && (
+          <div style={{ width: 60, height: 24 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={sparklineData}>
+                <Line
+                  type="monotone"
+                  dataKey="qps"
+                  stroke={color || PRIMARY_BLUE}
+                  strokeWidth={1.2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
       <div style={{ marginTop: 4 }}>
         <span style={{ fontSize: 22, fontWeight: 600, color: '#0f172a' }}>{value}</span>
@@ -266,7 +312,7 @@ const PostgreSQLMonitor = () => {
           style={{
             height: '100%',
             width: `${Math.min((value / max) * 100, 100)}%`,
-            backgroundColor: color || '#22c55e',
+            backgroundColor: color || PRIMARY_GREEN,
             borderRadius: 999,
             transition: 'width 0.4s ease'
           }}
@@ -287,298 +333,321 @@ const PostgreSQLMonitor = () => {
     </div>
   );
 
-  const TabContainer = ({ children }) => (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: 1400,
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16
-      }}
-    >
-      {children}
-    </div>
-  );
+  const FancyTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    return (
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1px solid #d1d5db',
+          borderRadius: 10,
+          padding: '6px 8px',
+          fontSize: 11,
+          boxShadow: '0 8px 20px rgba(15,23,42,0.1)'
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+        {payload.map(entry => (
+          <div key={entry.dataKey} style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: entry.color }}>{entry.name}</span>
+            <span style={{ marginLeft: 8 }}>{entry.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   // Tabs
 
   const OverviewTab = () => (
-    <TabContainer>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-        <div style={{ flex: 2 }}>
-          {sectionCard(
-            'Database Activity – Last 30 Days',
-            <div style={{ height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={last30Days}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="qps"
-                    stroke="#2563eb"
-                    fill="#60a5fa"
-                    fillOpacity={0.3}
-                    name="QPS"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="tps"
-                    stroke="#22c55e"
-                    fill="#4ade80"
-                    fillOpacity={0.3}
-                    name="TPS"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="avgQuery"
-                    stroke="#eab308"
-                    strokeWidth={2}
-                    name="Avg Query (ms)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+    <TabGrid>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,2fr) minmax(0,1.2fr)',
+          gap: 16
+        }}
+      >
+        {sectionCard(
+          'Database Activity – Last 30 Days',
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={last30Days}>
+                <defs>
+                  <linearGradient id="qpsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={PRIMARY_BLUE} stopOpacity={0.4} />
+                    <stop offset="95%" stopColor={PRIMARY_BLUE} stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="tpsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={PRIMARY_GREEN} stopOpacity={0.4} />
+                    <stop offset="95%" stopColor={PRIMARY_GREEN} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
+                <Tooltip content={<FancyTooltip />} />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="qps"
+                  stroke={PRIMARY_BLUE}
+                  fill="url(#qpsGrad)"
+                  name="QPS"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="tps"
+                  stroke={PRIMARY_GREEN}
+                  fill="url(#tpsGrad)"
+                  name="TPS"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="avgQuery"
+                  stroke="#eab308"
+                  strokeWidth={2}
+                  name="Avg Query (ms)"
+                  dot={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
-        <div style={{ flex: 1.2 }}>
-          {sectionCard(
-            'Key Metrics',
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2,minmax(0,1fr))',
-                gap: 10
-              }} // Adjusted gap for better spacing
-            >
-              <MetricCard
-                icon={Clock}
-                title="Avg Query Time"
-                value={metrics.avgQueryTime.toFixed(1)}
-                unit="ms"
-              />
-              <MetricCard
-                icon={AlertCircle}
-                title="Slow Queries"
-                value={metrics.slowQueryCount}
-              />
-              <MetricCard icon={Zap} title="QPS" value={metrics.qps} />
-              <MetricCard icon={Activity} title="TPS" value={metrics.tps} />
-              <MetricCard
-                icon={Server}
-                title="CPU Usage"
-                value={metrics.cpuUsage.toFixed(1)}
-                unit="%"
-              />
-              <MetricCard
-                icon={Database}
-                title="Memory Usage"
-                value={metrics.memoryUsage.toFixed(1)}
-                unit="%"
-              />
-            </div>
-          )}
-        </div>
+        {sectionCard(
+          'Key Metrics',
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2,minmax(0,1fr))',
+              gap: 10
+            }}
+          >
+            <MetricCard
+              icon={Clock}
+              title="Avg Query Time"
+              value={metrics.avgQueryTime.toFixed(1)}
+              unit="ms"
+              color="#eab308"
+              showSpark
+            />
+            <MetricCard
+              icon={AlertCircle}
+              title="Slow Queries"
+              value={metrics.slowQueryCount}
+              color={PRIMARY_RED}
+            />
+            <MetricCard
+              icon={Zap}
+              title="QPS"
+              value={metrics.qps}
+              color={PRIMARY_BLUE}
+              showSpark
+            />
+            <MetricCard icon={Activity} title="TPS" value={metrics.tps} color={PRIMARY_GREEN} />
+            <MetricCard
+              icon={Server}
+              title="CPU Usage"
+              value={metrics.cpuUsage.toFixed(1)}
+              unit="%"
+              color={PRIMARY_ORANGE}
+            />
+            <MetricCard
+              icon={Database}
+              title="Memory Usage"
+              value={metrics.memoryUsage.toFixed(1)}
+              unit="%"
+              color={PRIMARY_BLUE}
+            />
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ flex: 1.6 }}>
-          {sectionCard(
-            'Operations Per Second',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {[ // Added a wrapper div for better alignment
-                { label: 'SELECT', value: metrics.selectPerSec, color: '#2563eb' },
-                { label: 'INSERT', value: metrics.insertPerSec, color: '#22c55e' },
-                { label: 'UPDATE', value: metrics.updatePerSec, color: '#f97316' },
-                { label: 'DELETE', value: metrics.deletePerSec, color: '#ef4444' }
-              ].map(row => (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr)',
+          gap: 16
+        }}
+      >
+        {sectionCard(
+          'Operations Per Second',
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[
+              { label: 'SELECT', value: metrics.selectPerSec, color: PRIMARY_BLUE },
+              { label: 'INSERT', value: metrics.insertPerSec, color: PRIMARY_GREEN },
+              { label: 'UPDATE', value: metrics.updatePerSec, color: PRIMARY_ORANGE },
+              { label: 'DELETE', value: metrics.deletePerSec, color: PRIMARY_RED }
+            ].map(row => (
+              <div
+                key={row.label}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8
+                }}
+              >
                 <div
-                  key={row.label}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8
-                  }} // Adjusted gap for better spacing
+                    width: 70,
+                    fontSize: 12,
+                    color: '#374151'
+                  }}
                 >
-                  <div
-                    style={{
-                      width: 70,
-                      fontSize: 12,
-                      color: '#374151'
-                    }}
-                  >
-                    {row.label}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <ProgressBar value={row.value} max={2000} color={row.color} />
-                  </div>
-                  <div
-                    style={{
-                      width: 60,
-                      textAlign: 'right',
-                      fontSize: 12,
-                      color: '#6b7280'
-                    }}
-                  >
-                    {row.value}/s
-                  </div>
+                  {row.label}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ flex: 1 }}>
-          {sectionCard(
-            'Read vs Write Ratio', // Adjusted card title for consistency
-            <div style={{ height: 100 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'Read', value: metrics.readWriteRatio },
-                      { name: 'Write', value: 100 - metrics.readWriteRatio }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={50}
-                    dataKey="value"
-                  >
-                    <Cell fill="#2563eb" />
-                    <Cell fill="#22c55e" />
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+                <div style={{ flex: 1 }}>
+                  <ProgressBar value={row.value} max={2000} color={row.color} />
+                </div>
+                <div
+                  style={{
+                    width: 60,
+                    textAlign: 'right',
+                    fontSize: 12,
+                    color: '#6b7280'
+                  }}
+                >
+                  {row.value}/s
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {sectionCard(
+          'Read vs Write Ratio',
+          <div style={{ height: 220 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Read', value: metrics.readWriteRatio },
+                    { name: 'Write', value: 100 - metrics.readWriteRatio }
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={45}
+                  outerRadius={80}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  <Cell fill={PRIMARY_BLUE} />
+                  <Cell fill={PRIMARY_GREEN} />
+                </Pie>
+                <Tooltip content={<FancyTooltip />} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
-    </TabContainer>
+    </TabGrid>
   );
 
   const PerformanceTab = () => (
-    <TabContainer>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-        <div style={{ flex: 1.3 }}>
-          {sectionCard(
-            'Query Execution Time Distribution',
-            <div style={{ height: 200 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={queryTimeDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="range" tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
-                  <Bar dataKey="count" fill="#2563eb" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-        <div style={{ flex: 1 }}>
-          {sectionCard(
-            'Performance KPIs',
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2,minmax(0,1fr))',
-                gap: 10
-              }} // Adjusted gap for better spacing
-            >
-              <MetricCard
-                icon={Clock}
-                title="Avg Query Time"
-                value={metrics.avgQueryTime.toFixed(1)}
-                unit="ms"
-              />
-              <MetricCard
-                icon={AlertCircle}
-                title="Slow Queries"
-                value={metrics.slowQueryCount}
-                subtitle="> 1s"
-              />
-              <MetricCard icon={Zap} title="Queries/sec" value={metrics.qps} />
-              <MetricCard icon={Activity} title="Transactions/sec" value={metrics.tps} />
-            </div>
-          )}
-        </div>
+    <TabGrid>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)',
+          gap: 16
+        }}
+      >
+        {sectionCard(
+          'Query Execution Time Distribution',
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={queryTimeDistribution}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="range" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
+                <Tooltip content={<FancyTooltip />} />
+                <Bar dataKey="count" fill={PRIMARY_BLUE} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {sectionCard(
+          'Performance KPIs',
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2,minmax(0,1fr))',
+              gap: 10
+            }}
+          >
+            <MetricCard
+              icon={Clock}
+              title="Avg Query Time"
+              value={metrics.avgQueryTime.toFixed(1)}
+              unit="ms"
+              color="#eab308"
+              showSpark
+            />
+            <MetricCard
+              icon={AlertCircle}
+              title="Slow Queries"
+              value={metrics.slowQueryCount}
+              subtitle="> 1s"
+              color={PRIMARY_RED}
+            />
+            <MetricCard icon={Zap} title="Queries/sec" value={metrics.qps} color={PRIMARY_BLUE} />
+            <MetricCard
+              icon={Activity}
+              title="Transactions/sec"
+              value={metrics.tps}
+              color={PRIMARY_GREEN}
+            />
+          </div>
+        )}
       </div>
 
       <div>
         {sectionCard(
           'Performance Trends (Last 10 Days)',
-          <div style={{ height: 200 }}>
+          <div style={{ height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={last30Days.slice(-10)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6b7280' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderRadius: 12,
-                    border: '1px solid #d1d5db',
-                    fontSize: 11
-                  }}
-                />
+                <Tooltip content={<FancyTooltip />} />
                 <Legend />
                 <Line
                   type="monotone"
                   dataKey="avgQuery"
-                  stroke="#2563eb"
+                  stroke={PRIMARY_BLUE}
                   strokeWidth={2}
                   name="Avg Query (ms)"
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="errors"
-                  stroke="#ef4444"
+                  stroke={PRIMARY_RED}
                   strokeWidth={2}
                   name="Errors"
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
         )}
       </div>
-    </TabContainer>
+    </TabGrid>
   );
 
   const ResourcesTab = () => (
-    <TabContainer>
+    <TabGrid>
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3,minmax(0,1fr))',
-          gap: 16,
-          marginBottom: 16
+          gap: 16
         }}
       >
         <MetricCard
@@ -587,6 +656,7 @@ const PostgreSQLMonitor = () => {
           value={metrics.cpuUsage.toFixed(1)}
           unit="%"
           subtitle={`Avg: ${metrics.cpuAvg.toFixed(1)}%`}
+          color={PRIMARY_ORANGE}
         />
         <MetricCard
           icon={Database}
@@ -594,6 +664,7 @@ const PostgreSQLMonitor = () => {
           value={metrics.memoryUsage.toFixed(1)}
           unit="%"
           subtitle={`${metrics.memoryUsed}GB / ${metrics.memoryAllocated}GB`}
+          color={PRIMARY_BLUE}
         />
         <MetricCard
           icon={HardDrive}
@@ -601,161 +672,163 @@ const PostgreSQLMonitor = () => {
           value={metrics.diskUsed.toFixed(1)}
           unit="%"
           subtitle={`${metrics.diskAvailable}GB free`}
+          color={PRIMARY_GREEN}
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-        <div style={{ flex: 1.3 }}>
-          {sectionCard(
-            'System Resources',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}> {/* Adjusted gap for better spacing */}
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    marginBottom: 4
-                  }}
-                >
-                  <span>CPU Utilization</span>
-                  <span style={{ fontWeight: 500 }}>
-                    {metrics.cpuUsage.toFixed(1)}%
-                  </span>
-                </div>
-                <ProgressBar value={metrics.cpuUsage} max={100} />
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)',
+          gap: 16
+        }}
+      >
+        {sectionCard(
+          'System Resources',
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  marginBottom: 4
+                }}
+              >
+                <span>CPU Utilization</span>
+                <span style={{ fontWeight: 500 }}>
+                  {metrics.cpuUsage.toFixed(1)}%
+                </span>
               </div>
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    marginBottom: 4
-                  }}
-                >
-                  <span>Memory</span>
-                  <span style={{ fontWeight: 500 }}>
-                    {metrics.memoryUsed}GB / {metrics.memoryAllocated}GB
-                  </span>
-                </div>
-                <ProgressBar value={metrics.memoryUsed} max={metrics.memoryAllocated} />
-              </div>
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    marginBottom: 4
-                  }}
-                >
-                  <span>Disk</span>
-                  <span style={{ fontWeight: 500 }}>
-                    {(metrics.diskTotal - metrics.diskAvailable).toFixed(0)}GB /{' '}
-                    {metrics.diskTotal}GB
-                  </span>
-                </div>
-                <ProgressBar
-                  value={metrics.diskTotal - metrics.diskAvailable}
-                  max={metrics.diskTotal}
-                />
-              </div>
+              <ProgressBar value={metrics.cpuUsage} max={100} color={PRIMARY_ORANGE} />
             </div>
-          )}
-        </div>
-        <div style={{ flex: 1 }}>
-          {sectionCard(
-            'Disk I/O Operations',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}> {/* Adjusted gap for better spacing */}
+            <div>
               <div
                 style={{
-                  padding: 8,
-                  borderRadius: 10,
-                  background: '#ffffff',
-                  border: '1px solid #d1d5db',
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center'
+                  fontSize: 12,
+                  marginBottom: 4
                 }}
               >
-                <div>
-                  <div style={{ fontSize: 10, color: '#6b7280' }}>Read Rate</div>
-                  <div style={{ fontSize: 18, fontWeight: 400 }}>
-                    {metrics.diskIOReadRate}
-                  </div>
-                  <div style={{ fontSize: 10, color: '#6b7280' }}>ops/sec</div>
-                </div>
-                <TrendingUp size={18} color="#2563eb" />
+                <span>Memory</span>
+                <span style={{ fontWeight: 500 }}>
+                  {metrics.memoryUsed}GB / {metrics.memoryAllocated}GB
+                </span>
               </div>
-              <div
-                style={{
-                  padding: 8,
-                  borderRadius: 10,
-                  background: '#ffffff',
-                  border: '1px solid #d1d5db',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 10, color: '#6b7280' }}>Write Rate</div>
-                  <div style={{ fontSize: 18, fontWeight: 400 }}>
-                    {metrics.diskIOWriteRate}
-                  </div>
-                  <div style={{ fontSize: 10, color: '#6b7280' }}>ops/sec</div>
-                </div>
-                <TrendingDown size={18} color="#22c55e" />
-              </div>
-              <div
-                style={{
-                  padding: 8,
-                  borderRadius: 10,
-                  background: '#ffffff',
-                  border: '1px solid #d1d5db',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 10, color: '#6b7280' }}>I/O Latency</div>
-                  <div style={{ fontSize: 18, fontWeight: 400 }}>
-                    {metrics.diskIOLatency.toFixed(1)}
-                  </div>
-                  <div style={{ fontSize: 10, color: '#6b7280' }}>ms avg</div>
-                </div>
-                <Clock size={18} color="#f97316" />
-              </div>
+              <ProgressBar
+                value={metrics.memoryUsed}
+                max={metrics.memoryAllocated}
+                color={PRIMARY_GREEN}
+              />
             </div>
-          )}
-        </div>
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  marginBottom: 4
+                }}
+              >
+                <span>Disk</span>
+                <span style={{ fontWeight: 500 }}>
+                  {(metrics.diskTotal - metrics.diskAvailable).toFixed(0)}GB /{' '}
+                  {metrics.diskTotal}GB
+                </span>
+              </div>
+              <ProgressBar
+                value={metrics.diskTotal - metrics.diskAvailable}
+                max={metrics.diskTotal}
+                color={PRIMARY_BLUE}
+              />
+            </div>
+          </div>
+        )}
+
+        {sectionCard(
+          'Disk I/O Operations',
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                background: '#ffffff',
+                border: '1px solid #d1d5db',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Read Rate</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  {metrics.diskIOReadRate}
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>ops/sec</div>
+              </div>
+              <TrendingUp size={22} color={PRIMARY_BLUE} />
+            </div>
+            <div
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                background: '#ffffff',
+                border: '1px solid #d1d5db',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Write Rate</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  {metrics.diskIOWriteRate}
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>ops/sec</div>
+              </div>
+              <TrendingDown size={22} color={PRIMARY_GREEN} />
+            </div>
+            <div
+              style={{
+                padding: 10,
+                borderRadius: 10,
+                background: '#ffffff',
+                border: '1px solid #d1d5db',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>I/O Latency</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  {metrics.diskIOLatency.toFixed(1)}
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>ms avg</div>
+              </div>
+              <Clock size={22} color={PRIMARY_ORANGE} />
+            </div>
+          </div>
+        )}
       </div>
 
       <div>
         {sectionCard(
           'Table Size Growth – Last 12 Months',
-          <div style={{ height: 280 }}>
+          <div style={{ height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={tableGrowth}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderRadius: 12,
-                    border: '1px solid #d1d5db',
-                    fontSize: 11
-                  }}
-                />
+                <Tooltip content={<FancyTooltip />} />
                 <Legend />
                 <Area
                   type="monotone"
                   dataKey="orders"
                   stackId="1"
-                  stroke="#2563eb"
+                  stroke={PRIMARY_BLUE}
                   fill="#60a5fa"
                   fillOpacity={0.3}
                   name="Orders (MB)"
@@ -764,7 +837,7 @@ const PostgreSQLMonitor = () => {
                   type="monotone"
                   dataKey="customers"
                   stackId="1"
-                  stroke="#22c55e"
+                  stroke={PRIMARY_GREEN}
                   fill="#4ade80"
                   fillOpacity={0.3}
                   name="Customers (MB)"
@@ -773,7 +846,7 @@ const PostgreSQLMonitor = () => {
                   type="monotone"
                   dataKey="products"
                   stackId="1"
-                  stroke="#f97316"
+                  stroke={PRIMARY_ORANGE}
                   fill="#fdba74"
                   fillOpacity={0.3}
                   name="Products (MB)"
@@ -792,17 +865,16 @@ const PostgreSQLMonitor = () => {
           </div>
         )}
       </div>
-    </TabContainer>
+    </TabGrid>
   );
 
   const ReliabilityTab = () => (
-    <TabContainer>
+    <TabGrid>
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(5,minmax(0,1fr))',
-          gap: 16,
-          marginBottom: 16
+          gap: 16
         }}
       >
         <MetricCard
@@ -810,208 +882,209 @@ const PostgreSQLMonitor = () => {
           title="Availability"
           value={metrics.availability}
           unit="%"
+          color={PRIMARY_GREEN}
         />
         <MetricCard
           icon={XCircle}
           title="Downtime Events"
           value={metrics.downtimeIncidents}
+          color={PRIMARY_RED}
         />
         <MetricCard
           icon={AlertCircle}
           title="Error Rate"
           value={metrics.errorRate.toFixed(1)}
           unit="/min"
+          color={PRIMARY_ORANGE}
         />
-        <MetricCard icon={Lock} title="Deadlocks" value={metrics.deadlockCount} />
+        <MetricCard icon={Lock} title="Deadlocks" value={metrics.deadlockCount} color="#4b5563" />
         <MetricCard
           icon={Clock}
           title="Lock Wait Time"
           value={metrics.lockWaitTime}
           unit="ms"
+          color={PRIMARY_BLUE}
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ flex: 1.3 }}>
-          {sectionCard(
-            'Connection Health',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}> {/* Adjusted gap for better spacing */}
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    marginBottom: 4
-                  }}
-                >
-                  <span>Active Connections</span>
-                  <span>
-                    {metrics.activeConnections} / {metrics.maxConnections}
-                  </span>
-                </div>
-                <ProgressBar
-                  value={metrics.activeConnections}
-                  max={metrics.maxConnections}
-                />
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)',
+          gap: 16
+        }}
+      >
+        {sectionCard(
+          'Connection Health',
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  marginBottom: 4
+                }}
+              >
+                <span>Active Connections</span>
+                <span>
+                  {metrics.activeConnections} / {metrics.maxConnections}
+                </span>
               </div>
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    marginBottom: 4
-                  }}
-                >
-                  <span>Idle Connections</span>
-                  <span>
-                    {metrics.idleConnections} / {metrics.maxConnections}
-                  </span>
+              <ProgressBar
+                value={metrics.activeConnections}
+                max={metrics.maxConnections}
+                color={PRIMARY_GREEN}
+              />
+            </div>
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  marginBottom: 4
+                }}
+              >
+                <span>Idle Connections</span>
+                <span>
+                  {metrics.idleConnections} / {metrics.maxConnections}
+                </span>
+              </div>
+              <ProgressBar
+                value={metrics.idleConnections}
+                max={metrics.maxConnections}
+                color={PRIMARY_BLUE}
+              />
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2,minmax(0,1fr))',
+                gap: 10,
+                marginTop: 8
+              }}
+            >
+              <div
+                style={{
+                  textAlign: 'center',
+                  borderRadius: 12,
+                  padding: 10,
+                  background: '#fee2e2',
+                  border: '1px solid #fecaca'
+                }}
+              >
+                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  {metrics.failedConnections}
                 </div>
-                <ProgressBar
-                  value={metrics.idleConnections}
-                  max={metrics.maxConnections}
-                  color="#2563eb"
-                />
+                <div style={{ fontSize: 11, color: '#b91c1c' }}>Failed Attempts</div>
               </div>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2,minmax(0,1fr))',
-                  gap: 10,
-                  marginTop: 8
+                  textAlign: 'center',
+                  borderRadius: 12,
+                  padding: 10,
+                  background: '#ffedd5',
+                  border: '1px solid #fed7aa'
                 }}
               >
-                <div
-                  style={{
-                    textAlign: 'center',
-                    borderRadius: 12,
-                    padding: 10,
-                    background: '#fee2e2',
-                    border: '1px solid #fecaca'
-                  }}
-                >
-                  <div style={{ fontSize: 20, fontWeight: 600 }}>
-                    {metrics.failedConnections}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#b91c1c' }}>Failed Attempts</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  {metrics.connectionWaitTime}ms
                 </div>
-                <div
-                  style={{
-                    textAlign: 'center',
-                    borderRadius: 12,
-                    padding: 10,
-                    background: '#ffedd5',
-                    border: '1px solid #fed7aa'
-                  }}
-                >
-                  <div style={{ fontSize: 20, fontWeight: 600 }}>
-                    {metrics.connectionWaitTime}ms
-                  </div>
-                  <div style={{ fontSize: 11, color: '#c2410c' }}>Avg Wait Time</div>
-                </div>
+                <div style={{ fontSize: 11, color: '#c2410c' }}>Avg Wait Time</div>
               </div>
             </div>
-          )}
-        </div>
-        <div style={{ flex: 1 }}>
-          {sectionCard(
-            'Top Error Types', // Adjusted card title for consistency
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {topErrors.map((error, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    fontSize: 12
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: 4
-                      }}
-                    >
-                      <span>{error.type}</span>
-                      <span style={{ fontSize: 11, color: '#6b7280' }}>
-                        {error.percentage}%
-                      </span>
-                    </div>
-                    <ProgressBar
-                      value={error.percentage}
-                      max={100}
-                      color="#ef4444"
-                      showPercentage={false}
-                    />
-                  </div>
-                  <span style={{ fontSize: 11, color: '#6b7280' }}>
-                    {error.count} events
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-        <div style={{ flex: 1.3 }}>
-          {sectionCard(
-            'Table Size Distribution',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}> {/* Adjusted gap for better spacing */}
-              {[
-                { name: 'Orders', size: 300, color: '#2563eb' },
-                { name: 'Customers', size: 250, color: '#22c55e' },
-                { name: 'Products', size: 180, color: '#f97316' },
-                { name: 'Transactions', size: 400, color: '#a855f7' },
-                { name: 'Others', size: 120, color: '#ef4444' }
-              ].map(table => (
-                <div key={table.name}>
+        {sectionCard(
+          'Top Error Types',
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {topErrors.map((error, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  fontSize: 12
+                }}
+              >
+                <div style={{ flex: 1 }}>
                   <div
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
-                      fontSize: 12,
                       marginBottom: 4
                     }}
                   >
-                    <span>{table.name}</span>
-                    <span style={{ color: '#6b7280' }}>{table.size} GB</span>
+                    <span>{error.type}</span>
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>
+                      {error.percentage}%
+                    </span>
                   </div>
                   <ProgressBar
-                    value={table.size}
-                    max={500}
-                    color={table.color}
+                    value={error.percentage}
+                    max={100}
+                    color={PRIMARY_RED}
+                    showPercentage={false}
                   />
                 </div>
-              ))}
-              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-                Total Disk Used:{' '}
-                {(metrics.diskTotal - metrics.diskAvailable).toFixed(0)} GB
+                <span style={{ fontSize: 11, color: '#6b7280' }}>
+                  {error.count} events
+                </span>
               </div>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>
-                Free Space: {metrics.diskAvailable} GB
-              </div>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
-    </TabContainer>
+
+      <div>
+        {sectionCard(
+          'Table Size Distribution',
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[
+              { name: 'Orders', size: 300, color: PRIMARY_BLUE },
+              { name: 'Customers', size: 250, color: PRIMARY_GREEN },
+              { name: 'Products', size: 180, color: PRIMARY_ORANGE },
+              { name: 'Transactions', size: 400, color: '#a855f7' },
+              { name: 'Others', size: 120, color: PRIMARY_RED }
+            ].map(table => (
+              <div key={table.name}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: 12,
+                    marginBottom: 4
+                  }}
+                >
+                  <span>{table.name}</span>
+                  <span style={{ color: '#6b7280' }}>{table.size} GB</span>
+                </div>
+                <ProgressBar value={table.size} max={500} color={table.color} />
+              </div>
+            ))}
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+              Total Disk Used:{' '}
+              {(metrics.diskTotal - metrics.diskAvailable).toFixed(0)} GB
+            </div>
+            <div style={{ fontSize: 12, color: '#6b7280' }}>
+              Free Space: {metrics.diskAvailable} GB
+            </div>
+          </div>
+        )}
+      </div>
+    </TabGrid>
   );
 
   const IndexesTab = () => (
-    <TabContainer>
+    <TabGrid>
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3,minmax(0,1fr))',
-          gap: 16,
-          marginBottom: 16
+          gap: 16
         }}
       >
         <MetricCard
@@ -1019,104 +1092,105 @@ const PostgreSQLMonitor = () => {
           title="Index Hit Ratio"
           value={metrics.indexHitRatio.toFixed(1)}
           unit="%"
+          color={PRIMARY_GREEN}
         />
         <MetricCard
           icon={AlertTriangle}
           title="Missing Indexes"
           value={metrics.missingIndexes}
+          color={PRIMARY_ORANGE}
         />
         <MetricCard
           icon={AlertCircle}
           title="Unused Indexes"
           value={metrics.unusedIndexes}
+          color={PRIMARY_RED}
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ flex: 1.3 }}>
-          {sectionCard(
-            'Table Scan vs Index Usage',
-            <div style={{ height: 280 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={[
-                    {
-                      name: 'Scan Stats',
-                      tableScanRate: metrics.tableScanRate,
-                      indexHitRatio: metrics.indexHitRatio
-                    }
-                  ]}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="name" tick={{ fill: '#6b7280' }} />
-                  <YAxis tick={{ fill: '#6b7280' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="tableScanRate"
-                    name="Table Scan Rate (%)"
-                    fill="#f97316"
-                  />
-                  <Bar
-                    dataKey="indexHitRatio"
-                    name="Index Hit Ratio (%)"
-                    fill="#22c55e"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-        <div style={{ flex: 1 }}>
-          {sectionCard(
-            'Fragmentation & Maintenance', // Adjusted card title for consistency
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 12,
-                    marginBottom: 4
-                  }}
-                >
-                  <span>Fragmentation Level</span>
-                  <span style={{ fontWeight: 500 }}>
-                    {metrics.fragmentationLevel.toFixed(1)}%
-                  </span>
-                </div>
-                <ProgressBar
-                  value={metrics.fragmentationLevel}
-                  max={100}
-                  color={
-                    metrics.fragmentationLevel > 40
-                      ? '#ef4444'
-                      : metrics.fragmentationLevel > 20
-                      ? '#f97316'
-                      : '#22c55e'
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)',
+          gap: 16
+        }}
+      >
+        {sectionCard(
+          'Table Scan vs Index Usage',
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={[
+                  {
+                    name: 'Scan Stats',
+                    tableScanRate: metrics.tableScanRate,
+                    indexHitRatio: metrics.indexHitRatio
                   }
-                  showPercentage
+                ]}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="name" tick={{ fill: '#6b7280' }} />
+                <YAxis tick={{ fill: '#6b7280' }} />
+                <Tooltip content={<FancyTooltip />} />
+                <Legend />
+                <Bar
+                  dataKey="tableScanRate"
+                  name="Table Scan Rate (%)"
+                  fill={PRIMARY_ORANGE}
+                  radius={[4, 4, 0, 0]}
                 />
+                <Bar
+                  dataKey="indexHitRatio"
+                  name="Index Hit Ratio (%)"
+                  fill={PRIMARY_GREEN}
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {sectionCard(
+          'Fragmentation & Maintenance',
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 12,
+                  marginBottom: 4
+                }}
+              >
+                <span>Fragmentation Level</span>
+                <span style={{ fontWeight: 500 }}>
+                  {metrics.fragmentationLevel.toFixed(1)}%
+                </span>
               </div>
-              <p style={{ fontSize: 11, color: '#6b7280' }}>
-                Higher fragmentation and table scan rate suggest VACUUM / REINDEX and
-                index tuning may be needed.
-              </p>
+              <ProgressBar
+                value={metrics.fragmentationLevel}
+                max={100}
+                color={
+                  metrics.fragmentationLevel > 40
+                    ? PRIMARY_RED
+                    : metrics.fragmentationLevel > 20
+                    ? PRIMARY_ORANGE
+                    : PRIMARY_GREEN
+                }
+                showPercentage
+              />
             </div>
-          )}
-        </div>
+            <p style={{ fontSize: 11, color: '#6b7280' }}>
+              Higher fragmentation and table scan rate suggest VACUUM / REINDEX and
+              index tuning may be needed.
+            </p>
+          </div>
+        )}
       </div>
-    </TabContainer>
+    </TabGrid>
   );
 
-  // -------- MAIN SHELL --------
+  // main shell
   const sidebarWidth = sidebarCollapsed ? 64 : 220;
 
   return (
@@ -1230,7 +1304,7 @@ const PostgreSQLMonitor = () => {
                   justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
                 }}
               >
-                <Icon size={16} color={active ? '#2563eb' : '#6b7280'} />
+                <Icon size={16} color={active ? PRIMARY_BLUE : '#6b7280'} />
                 {!sidebarCollapsed && (
                   <span style={{ fontSize: 12 }}>{item.label}</span>
                 )}
@@ -1263,7 +1337,6 @@ const PostgreSQLMonitor = () => {
             </div>
           )}
 
-          {/* auto-hide / toggle button */}
           <button
             onClick={() => setSidebarCollapsed(prev => !prev)}
             style={{
@@ -1360,8 +1433,6 @@ const PostgreSQLMonitor = () => {
         <main
           style={{
             padding: '14px 18px 18px',
-            display: 'flex',
-            justifyContent: 'center',
             width: '100%',
             boxSizing: 'border-box'
           }}
