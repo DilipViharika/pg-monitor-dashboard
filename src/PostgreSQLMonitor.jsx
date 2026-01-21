@@ -1241,35 +1241,6 @@ const PostgreSQLMonitor = () => {
           )}
         </div>
 
-        {!sidebarCollapsed && (
-          <div
-            style={{
-              padding: '10px 12px',
-              borderRadius: 10,
-              background: '#ffffff',
-              border: '1px solid #d1d5db'
-            }}
-          >
-            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
-              Cluster Health
-            </div>
-            <div
-              style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}
-            >
-              <span>Availability</span>
-              <span style={{ color: '#16a34a', fontWeight: 600 }}>
-                {metrics.availability}%
-              </span>
-            </div>
-            <div
-              style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}
-            >
-              <span>Uptime</span>
-              <span>{formatUptime(metrics.uptime)}</span>
-            </div>
-          </div>
-        )}
-
         <div>
           {!sidebarCollapsed && (
             <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, paddingLeft: 8 }}>Views</div>
@@ -1418,16 +1389,34 @@ const PostgreSQLMonitor = () => {
               </div>
             </div>
             <div style={{ textAlign: 'right', fontSize: 12 }}>
-              <div style={{ color: '#64748b', marginBottom: 2 }}>Active Connections</div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>
-                <span style={{ color: PRIMARY_BLUE }}>{metrics.activeConnections}</span>
-                <span style={{ color: '#cbd5e1', margin: '0 4px' }}>/</span>
-                {metrics.maxConnections}
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div>
+                  <div style={{ color: '#64748b', marginBottom: 2 }}>Availability</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: PRIMARY_GREEN }}>
+                    {metrics.availability}%
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748b', marginBottom: 2 }}>Uptime</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    {formatUptime(metrics.uptime)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748b', marginBottom: 2 }}>Active Connections</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    <span style={{ color: PRIMARY_BLUE }}>{metrics.activeConnections}</span>
+                    <span style={{ color: '#cbd5e1', margin: '0 4px' }}>/</span>
+                    {metrics.maxConnections}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+          <div
+            style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}
+          >
             {recentAlerts.slice(0, 3).map((alert, idx) => (
               <div
                 key={idx}
