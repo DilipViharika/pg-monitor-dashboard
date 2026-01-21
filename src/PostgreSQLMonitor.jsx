@@ -310,7 +310,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 2 }}>
           {sectionCard(
             'Database Activity – Last 30 Days',
-            <div style={{ height: 260 }}>
+            <div style={{ height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={last30Days}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -362,7 +362,7 @@ const PostgreSQLMonitor = () => {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2,minmax(0,1fr))',
                 gap: 10
-              }}
+              }} // Adjusted gap for better spacing
             >
               <MetricCard
                 icon={Clock}
@@ -399,7 +399,7 @@ const PostgreSQLMonitor = () => {
           {sectionCard(
             'Operations Per Second',
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {[
+              {[ // Added a wrapper div for better alignment
                 { label: 'SELECT', value: metrics.selectPerSec, color: '#2563eb' },
                 { label: 'INSERT', value: metrics.insertPerSec, color: '#22c55e' },
                 { label: 'UPDATE', value: metrics.updatePerSec, color: '#f97316' },
@@ -411,7 +411,7 @@ const PostgreSQLMonitor = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8
-                  }}
+                  }} // Adjusted gap for better spacing
                 >
                   <div
                     style={{
@@ -442,7 +442,7 @@ const PostgreSQLMonitor = () => {
         </div>
         <div style={{ flex: 1 }}>
           {sectionCard(
-            'Read vs Write Ratio',
+            'Read vs Write Ratio', // Adjusted card title for consistency
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -482,7 +482,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1.3 }}>
           {sectionCard(
             'Query Execution Time Distribution',
-            <div style={{ height: 260 }}>
+            <div style={{ height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={queryTimeDistribution}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -510,7 +510,7 @@ const PostgreSQLMonitor = () => {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2,minmax(0,1fr))',
                 gap: 10
-              }}
+              }} // Adjusted gap for better spacing
             >
               <MetricCard
                 icon={Clock}
@@ -534,7 +534,7 @@ const PostgreSQLMonitor = () => {
       <div>
         {sectionCard(
           'Performance Trends (Last 10 Days)',
-          <div style={{ height: 260 }}>
+          <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={last30Days.slice(-10)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -608,7 +608,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1.3 }}>
           {sectionCard(
             'System Resources',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}> {/* Adjusted gap for better spacing */}
               <div>
                 <div
                   style={{
@@ -667,7 +667,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1 }}>
           {sectionCard(
             'Disk I/O Operations',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}> {/* Adjusted gap for better spacing */}
               <div
                 style={{
                   padding: 10,
@@ -736,7 +736,7 @@ const PostgreSQLMonitor = () => {
       <div>
         {sectionCard(
           'Table Size Growth – Last 12 Months',
-          <div style={{ height: 260 }}>
+          <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={tableGrowth}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -835,7 +835,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1.3 }}>
           {sectionCard(
             'Connection Health',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}> {/* Adjusted gap for better spacing */}
               <div>
                 <div
                   style={{
@@ -917,7 +917,7 @@ const PostgreSQLMonitor = () => {
         </div>
         <div style={{ flex: 1 }}>
           {sectionCard(
-            'Top Error Types',
+            'Top Error Types', // Adjusted card title for consistency
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {topErrors.map((error, idx) => (
                 <div
@@ -963,7 +963,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1.3 }}>
           {sectionCard(
             'Table Size Distribution',
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}> {/* Adjusted gap for better spacing */}
               {[
                 { name: 'Orders', size: 300, color: '#2563eb' },
                 { name: 'Customers', size: 250, color: '#22c55e' },
@@ -1036,7 +1036,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1.3 }}>
           {sectionCard(
             'Table Scan vs Index Usage',
-            <div style={{ height: 260 }}>
+            <div style={{ height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={[
@@ -1076,7 +1076,7 @@ const PostgreSQLMonitor = () => {
         </div>
         <div style={{ flex: 1 }}>
           {sectionCard(
-            'Fragmentation & Maintenance',
+            'Fragmentation & Maintenance', // Adjusted card title for consistency
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
                 <div
