@@ -35,6 +35,20 @@ import {
 const PostgreSQLMonitor = () => {
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Handle hash-based navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && ['overview', 'performance', 'resources', 'reliability', 'indexes'].includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    
+    handleHashChange(); // Check initial hash
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2,
     slowQueryCount: 23,
@@ -945,7 +959,7 @@ const PostgreSQLMonitor = () => {
                   </div>
                   <ProgressBar
                     value={table.size}
-                    max={500} // Assuming a max size for visualization
+                    max={500}
                     color={table.color}
                   />
                 </div>
@@ -1161,7 +1175,10 @@ const PostgreSQLMonitor = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => window.location.hash = item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  window.location.hash = item.id;
+                }}
                 style={{
                   width: '100%',
                   display: 'flex',
