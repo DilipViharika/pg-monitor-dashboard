@@ -12,7 +12,9 @@ import {
   Lock,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   LineChart,
@@ -34,6 +36,7 @@ import {
 
 const PostgreSQLMonitor = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2,
@@ -180,8 +183,7 @@ const PostgreSQLMonitor = () => {
     return `${days}d ${hours}h`;
   };
 
-  // ---- Light-theme helpers ----
-
+  // layout helpers
   const sectionCard = (title, children, rightNode) => (
     <div
       style={{
@@ -285,10 +287,25 @@ const PostgreSQLMonitor = () => {
     </div>
   );
 
-  // ---- Tabs ----
+  const TabContainer = ({ children }) => (
+    <div
+      style={{
+        width: '100%',
+        maxWidth: 1400,
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16
+      }}
+    >
+      {children}
+    </div>
+  );
+
+  // Tabs
 
   const OverviewTab = () => (
-    <>
+    <TabContainer>
       <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
         <div style={{ flex: 2 }}>
           {sectionCard(
@@ -410,7 +427,7 @@ const PostgreSQLMonitor = () => {
                   </div>
                   <div
                     style={{
-                      width: 50,
+                      width: 60,
                       textAlign: 'right',
                       fontSize: 12,
                       color: '#6b7280'
@@ -456,11 +473,11 @@ const PostgreSQLMonitor = () => {
           )}
         </div>
       </div>
-    </>
+    </TabContainer>
   );
 
   const PerformanceTab = () => (
-    <>
+    <TabContainer>
       <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
         <div style={{ flex: 1.3 }}>
           {sectionCard(
@@ -551,11 +568,11 @@ const PostgreSQLMonitor = () => {
           </div>
         )}
       </div>
-    </>
+    </TabContainer>
   );
 
   const ResourcesTab = () => (
-    <>
+    <TabContainer>
       <div
         style={{
           display: 'grid',
@@ -775,11 +792,11 @@ const PostgreSQLMonitor = () => {
           </div>
         )}
       </div>
-    </>
+    </TabContainer>
   );
 
   const ReliabilityTab = () => (
-    <>
+    <TabContainer>
       <div
         style={{
           display: 'grid',
@@ -984,11 +1001,11 @@ const PostgreSQLMonitor = () => {
           )}
         </div>
       </div>
-    </>
+    </TabContainer>
   );
 
   const IndexesTab = () => (
-    <>
+    <TabContainer>
       <div
         style={{
           display: 'grid',
@@ -1096,10 +1113,12 @@ const PostgreSQLMonitor = () => {
           )}
         </div>
       </div>
-    </>
+    </TabContainer>
   );
 
   // -------- MAIN SHELL --------
+  const sidebarWidth = sidebarCollapsed ? 64 : 220;
+
   return (
     <div
       style={{
@@ -1115,13 +1134,14 @@ const PostgreSQLMonitor = () => {
       {/* SIDEBAR */}
       <aside
         style={{
-          width: 'auto',
+          width: sidebarWidth,
           borderRight: '1px solid #d1d5db',
-          padding: '16px 18px',
+          padding: '16px 12px',
           background: '#f3f4ff',
           display: 'flex',
           flexDirection: 'column',
-          gap: 18
+          gap: 18,
+          transition: 'width 0.25s ease'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1138,41 +1158,47 @@ const PostgreSQLMonitor = () => {
           >
             <Database size={18} color="#ffffff" />
           </div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>PostgreSQL Monitor</div>
-            <div style={{ fontSize: 11, color: '#6b7280' }}>Prod Cluster</div>
-          </div>
+          {!sidebarCollapsed && (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>PostgreSQL Monitor</div>
+              <div style={{ fontSize: 11, color: '#6b7280' }}>Prod Cluster</div>
+            </div>
+          )}
         </div>
 
-        <div
-          style={{
-            padding: '10px 12px',
-            borderRadius: 10,
-            background: '#ffffff',
-            border: '1px solid #d1d5db'
-          }}
-        >
-          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
-            Cluster Health
-          </div>
+        {!sidebarCollapsed && (
           <div
-            style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: '#ffffff',
+              border: '1px solid #d1d5db'
+            }}
           >
-            <span>Availability</span>
-            <span style={{ color: '#16a34a', fontWeight: 600 }}>
-              {metrics.availability}%
-            </span>
+            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
+              Cluster Health
+            </div>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}
+            >
+              <span>Availability</span>
+              <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                {metrics.availability}%
+              </span>
+            </div>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}
+            >
+              <span>Uptime</span>
+              <span>{formatUptime(metrics.uptime)}</span>
+            </div>
           </div>
-          <div
-            style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}
-          >
-            <span>Uptime</span>
-            <span>{formatUptime(metrics.uptime)}</span>
-          </div>
-        </div>
+        )}
 
         <div>
-          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>Views</div>
+          {!sidebarCollapsed && (
+            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>Views</div>
+          )}
           {[
             { id: 'overview', label: 'Overview', icon: Activity },
             { id: 'performance', label: 'Performance', icon: Zap },
@@ -1193,18 +1219,21 @@ const PostgreSQLMonitor = () => {
                   width: '100%',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
+                  gap: sidebarCollapsed ? 0 : 8,
                   padding: '6px 8px',
-                  marginBottom: 2,
+                  marginBottom: 4,
                   borderRadius: 6,
                   border: 'none',
                   cursor: 'pointer',
                   background: active ? '#e5edf7' : 'transparent',
-                  color: active ? '#0f172a' : '#6b7280'
+                  color: active ? '#0f172a' : '#6b7280',
+                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
                 }}
               >
-                <Icon size={14} color={active ? '#2563eb' : '#6b7280'} />
-                <span style={{ fontSize: 12 }}>{item.label}</span>
+                <Icon size={16} color={active ? '#2563eb' : '#6b7280'} />
+                {!sidebarCollapsed && (
+                  <span style={{ fontSize: 12 }}>{item.label}</span>
+                )}
               </button>
             );
           })}
@@ -1217,20 +1246,51 @@ const PostgreSQLMonitor = () => {
             color: '#6b7280',
             display: 'flex',
             flexDirection: 'column',
-            gap: 4
+            gap: 8
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 999,
-                backgroundColor: '#16a34a'
-              }}
-            />
-            Live metrics every 15 seconds
-          </div>
+          {!sidebarCollapsed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 999,
+                  backgroundColor: '#16a34a'
+                }}
+              />
+              Live metrics every 15 seconds
+            </div>
+          )}
+
+          {/* auto-hide / toggle button */}
+          <button
+            onClick={() => setSidebarCollapsed(prev => !prev)}
+            style={{
+              alignSelf: sidebarCollapsed ? 'center' : 'flex-end',
+              borderRadius: 999,
+              border: '1px solid #d1d5db',
+              background: '#ffffff',
+              padding: '4px 6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              fontSize: 11,
+              color: '#4b5563'
+            }}
+          >
+            {sidebarCollapsed ? (
+              <>
+                <ChevronRight size={14} />
+              </>
+            ) : (
+              <>
+                <ChevronLeft size={14} />
+                <span>Hide Views</span>
+              </>
+            )}
+          </button>
         </div>
       </aside>
 
@@ -1299,10 +1359,9 @@ const PostgreSQLMonitor = () => {
 
         <main
           style={{
-            padding: '14px 18px',
+            padding: '14px 18px 18px',
             display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
+            justifyContent: 'center',
             width: '100%',
             boxSizing: 'border-box'
           }}
