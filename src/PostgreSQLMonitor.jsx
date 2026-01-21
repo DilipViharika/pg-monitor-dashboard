@@ -1313,51 +1313,60 @@ const PostgreSQLMonitor = () => {
             );
           })}
         </div>
-
-        <div
+<div
           style={{
             marginTop: 'auto',
-            fontSize: 11,
-            color: '#6b7280',
+            paddingTop: 12,
+            borderTop: '1px solid #e5e7eb',
             display: 'flex',
             flexDirection: 'column',
-            gap: 8
+            gap: 10
           }}
         >
           {!sidebarCollapsed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 4 }}>
               <span
                 style={{
                   width: 8,
                   height: 8,
                   borderRadius: 999,
-                  backgroundColor: '#16a34a'
+                  backgroundColor: '#16a34a',
+                  flexShrink: 0
                 }}
               />
-              Live metrics every 15 seconds
+              <span style={{ fontSize: 11, color: '#6b7280' }}>
+                Live metrics every 15 seconds
+              </span>
             </div>
           )}
 
           <button
             onClick={() => setSidebarCollapsed(prev => !prev)}
             style={{
-              alignSelf: sidebarCollapsed ? 'center' : 'flex-end',
-              borderRadius: 999,
+              width: '100%',
+              borderRadius: 8,
               border: '1px solid #d1d5db',
               background: '#ffffff',
-              padding: '4px 6px',
+              padding: '6px 8px',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 6,
               cursor: 'pointer',
               fontSize: 11,
-              color: '#4b5563'
+              color: '#4b5563',
+              fontWeight: 500,
+              transition: 'background 0.2s ease'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#f9fafb';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#ffffff';
             }}
           >
             {sidebarCollapsed ? (
-              <>
-                <ChevronRight size={14} />
-              </>
+              <ChevronRight size={14} />
             ) : (
               <>
                 <ChevronLeft size={14} />
