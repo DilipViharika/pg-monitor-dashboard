@@ -920,7 +920,7 @@ const PostgreSQLMonitor = () => {
       </div>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1.3 }}>
           {sectionCard(
             'Table Size Distribution',
             <div style={{ height: 260 }}>
@@ -929,10 +929,11 @@ const PostgreSQLMonitor = () => {
                   <Pie
                     data={[
                       { name: 'Orders', value: 300 },
-                      { name: 'Customers', value: 200 },
-                      { name: 'Products', value: 150 },
-                      { name: 'Transactions', value: 350 },
-                      { name: 'Others', value: 100 }
+                      { name: 'Customers', value: 250 },
+                      { name: 'Products', value: 180 },
+                      { name: 'Transactions', value: 400 },
+                      { name: 'Others', value: 120 },
+                      { name: 'Free Space', value: 500 }
                     ]}
                     cx="50%"
                     cy="50%"
@@ -945,6 +946,7 @@ const PostgreSQLMonitor = () => {
                     <Cell fill="#f97316" />
                     <Cell fill="#a855f7" />
                     <Cell fill="#ef4444" />
+                    <Cell fill="#d1d5db" />
                   </Pie>
                   <Tooltip
                     contentStyle={{
@@ -956,38 +958,6 @@ const PostgreSQLMonitor = () => {
                   />
                   <Legend />
                 </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-        <div style={{ flex: 1.3 }}>
-          {sectionCard(
-            'Index Performance by Table',
-            <div style={{ height: 260 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={[
-                    { name: 'Orders', hitRatio: 98, unused: 5 },
-                    { name: 'Customers', hitRatio: 95, unused: 2 },
-                    { name: 'Products', hitRatio: 92, unused: 8 },
-                    { name: 'Transactions', hitRatio: 99, unused: 1 }
-                  ]}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="name" tick={{ fill: '#6b7280' }} />
-                  <YAxis tick={{ fill: '#6b7280' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="hitRatio" name="Index Hit Ratio (%)" fill="#22c55e" />
-                  <Bar dataKey="unused" name="Unused Indexes" fill="#f97316" />
-                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
