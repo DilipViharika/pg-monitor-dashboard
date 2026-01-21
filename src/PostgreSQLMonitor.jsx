@@ -1160,7 +1160,7 @@ const PostgreSQLMonitor = () => {
                 backgroundColor: '#16a34a'
               }}
             />
-            Live metrics every 15 seconds}
+            Live metrics every 15 seconds
           </div>
         </div>
       </aside>
