@@ -201,7 +201,7 @@ const PostgreSQLMonitor = () => {
     <div
       style={{
         width: '100%',
-        maxWidth: 1200,
+        // maxWidth: 1200, // REMOVED to allow full expansion
         marginLeft: 0,
         marginRight: 'auto',
         display: 'grid',
@@ -1214,7 +1214,8 @@ const PostgreSQLMonitor = () => {
           display: 'flex',
           flexDirection: 'column',
           gap: 18,
-          transition: 'width 0.25s ease'
+          transition: 'width 0.25s ease',
+          flexShrink: 0 // Ensure sidebar doesn't shrink when main expands
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1381,8 +1382,17 @@ const PostgreSQLMonitor = () => {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      {/* MAIN CONTENT (Header + Main) */}
+      <div 
+        style={{ 
+          flex: 1,             // Take all remaining space
+          display: 'flex', 
+          flexDirection: 'column', 
+          height: '100vh', 
+          overflow: 'hidden',
+          minWidth: 0          // Crucial for nested flex containers to shrink/grow properly
+        }}
+      >
         <header
           style={{
             borderBottom: '1px solid #d1d5db',
@@ -1456,7 +1466,8 @@ const PostgreSQLMonitor = () => {
             padding: '24px',
             width: '100%',
             boxSizing: 'border-box',
-            overflowY: 'auto'
+            overflowY: 'auto',
+            flex: 1 // Scroll independently from header
           }}
         >
           {activeTab === 'overview' && <OverviewTab />}
