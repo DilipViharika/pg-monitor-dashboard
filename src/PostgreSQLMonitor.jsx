@@ -15,18 +15,13 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
-  Crosshair,
-  Map
+  Crosshair
 } from 'lucide-react';
 import {
   LineChart,
   Line,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
   Cell,
   XAxis,
   YAxis,
@@ -102,11 +97,11 @@ const PostgreSQLMonitor = () => {
   });
 
   // Advanced Data States
-  const [timeSeriesData, setTimeSeriesData] = useState([]); // For Composed Chart
-  const [queryScatterData, setQueryScatterData] = useState([]); // For Scatter
-  const [storageTreeData, setStorageTreeData] = useState([]); // For Treemap
-  const [radarData, setRadarData] = useState([]); // For Radar
-  const [hourlyHeatmap, setHourlyHeatmap] = useState([]); // For Heatmap
+  const [timeSeriesData, setTimeSeriesData] = useState([]); 
+  const [queryScatterData, setQueryScatterData] = useState([]); 
+  const [storageTreeData, setStorageTreeData] = useState([]); 
+  const [radarData, setRadarData] = useState([]); 
+  const [hourlyHeatmap, setHourlyHeatmap] = useState([]); 
   const [topErrors, setTopErrors] = useState([]);
   const [recentAlerts, setRecentAlerts] = useState([]);
 
@@ -128,9 +123,9 @@ const PostgreSQLMonitor = () => {
     const queries = Array.from({ length: 40 }, (_, i) => ({
       id: i,
       queryHash: `Q-${Math.floor(Math.random() * 10000)}`,
-      duration: Math.random() * 800 + 10, // x-axis
-      frequency: Math.floor(Math.random() * 1000) + 10, // y-axis
-      impact: Math.floor(Math.random() * 100), // z-axis (bubble size)
+      duration: Math.random() * 800 + 10,
+      frequency: Math.floor(Math.random() * 1000) + 10,
+      impact: Math.floor(Math.random() * 100),
       type: Math.random() > 0.7 ? 'WRITE' : 'READ'
     }));
     setQueryScatterData(queries);
@@ -215,7 +210,7 @@ const PostgreSQLMonitor = () => {
   // --- Helper Components ---
 
   const CustomizedTreemapContent = (props) => {
-    const { root, depth, x, y, width, height, index, name } = props;
+    const { depth, x, y, width, height, name } = props;
     return (
       <g>
         <rect
@@ -529,11 +524,7 @@ const PostgreSQLMonitor = () => {
       {/* MAIN */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
         <header style={{ borderBottom: '1px solid #d1d5db', padding: '12px 24px', display: 'flex', flexDirection: 'column', gap: 12, background: '#ffffff', zIndex: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 600, color: '#1e293b' }}>Live Monitoring</div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>Queries, resources, locks, and index health</div>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
             <div style={{ textAlign: 'right', fontSize: 12, display: 'flex', gap: 16 }}>
                 <div>
                   <div style={{ color: '#64748b', marginBottom: 2 }}>Active Connections</div>
