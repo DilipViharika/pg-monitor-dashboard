@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Activity,
   Database,
@@ -33,6 +33,11 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts';
+
+const PRIMARY_BLUE = '#2563eb';
+const PRIMARY_GREEN = '#22c55e';
+const PRIMARY_ORANGE = '#f97316';
+const PRIMARY_RED = '#ef4444';
 
 const PostgreSQLMonitor = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -142,7 +147,7 @@ const PostgreSQLMonitor = () => {
       { severity: 'warning', message: 'Disk I/O latency increased', time: '35 min ago', resolved: true },
       { severity: 'info', message: 'Table fragmentation above threshold', time: '1 hour ago', resolved: false }
     ]);
-  }, []);
+  }, []); [file:1]
 
   // live updates
   useEffect(() => {
@@ -167,14 +172,12 @@ const PostgreSQLMonitor = () => {
     }, 15000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, []); [file:1]
 
-  // optional: initialize activeTab from URL hash
+  // sync from URL hash (optional)
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (hash) {
-      setActiveTab(hash);
-    }
+    if (hash) setActiveTab(hash);
   }, []);
 
   const formatUptime = seconds => {
@@ -183,15 +186,42 @@ const PostgreSQLMonitor = () => {
     return `${days}d ${hours}h`;
   };
 
-  // layout helpers
+  // sparkline data for metric cards (last 7 days)
+  const sparklineData = useMemo(
+    () =>
+      last30Days.slice(-7).map(d => ({
+        date: d.date,
+        qps: d.qps,
+        avgQuery: d.avgQuery
+      })),
+    [last30Days]
+  );
+
+  // ---- layout helpers ----
+
+  const TabContainer = ({ children }) => (
+    <div
+      style={{
+        width: '100%',
+        maxWidth: 1200,
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16
+      }}
+    >
+      {children}
+    </div>
+  );
+
   const sectionCard = (title, children, rightNode) => (
     <div
       style={{
-        background: 'linear-gradient(135deg,#ffffff 0%,#f3f4ff 60%,#e5edf7 100%)',
-        borderRadius: 16,
+        background: 'linear-gradient(135deg,#ffffff 0%,#f4f5ff 40%,#e5edf7 100%)',
+        borderRadius: 18,
         border: '1px solid #d1d5db',
-        padding: '14px 16px',
-        boxShadow: '0 10px 30px rgba(15,23,42,0.08)'
+        padding: '14px 16px 18px',
+        boxShadow: '0 12px 32px rgba(15,23,42,0.10)'
       }}
     >
       <div
@@ -207,13 +237,13 @@ const PostgreSQLMonitor = () => {
       </div>
       {children}
     </div>
-  );
+  ); [file:1]
 
-  const MetricCard = ({ icon: Icon, title, value, unit, subtitle }) => (
+  const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color, showSpark }) => (
     <div
       style={{
         background: '#ffffff',
-        borderRadius: 14,
+        borderRadius: 16,
         border: '1px solid #d1d5db',
         padding: '10px 12px',
         display: 'flex',
@@ -221,22 +251,39 @@ const PostgreSQLMonitor = () => {
         gap: 4
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 10,
-            background: '#e5edf7',
-            border: '1px solid #d1d5db',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          <Icon size={14} color="#0f172a" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 10,
+              background: '#e5edf7',
+              border: '1px solid #d1d5db',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Icon size={14} color={color || '#0f172a'} />
+          </div>
+          <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>{title}</span>
         </div>
-        <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>{title}</span>
+        {showSpark && sparklineData.length > 1 && (
+          <div style={{ width: 60, height: 24 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={sparklineData}>
+                <Line
+                  type="monotone"
+                  dataKey="qps"
+                  stroke={color || PRIMARY_BLUE}
+                  strokeWidth={1.2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
       <div style={{ marginTop: 4 }}>
         <span style={{ fontSize: 22, fontWeight: 600, color: '#0f172a' }}>{value}</span>
@@ -248,7 +295,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{subtitle}</div>
       )}
     </div>
-  );
+  ); [file:1]
 
   const ProgressBar = ({ value, max, color, showPercentage }) => (
     <div style={{ width: '100%' }}>
@@ -266,7 +313,7 @@ const PostgreSQLMonitor = () => {
           style={{
             height: '100%',
             width: `${Math.min((value / max) * 100, 100)}%`,
-            backgroundColor: color || '#22c55e',
+            backgroundColor: color || PRIMARY_GREEN,
             borderRadius: 999,
             transition: 'width 0.4s ease'
           }}
@@ -285,24 +332,33 @@ const PostgreSQLMonitor = () => {
         </div>
       )}
     </div>
-  );
+  ); [file:1]
 
-  const TabContainer = ({ children }) => (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: 1400,
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16
-      }}
-    >
-      {children}
-    </div>
-  );
+  const FancyTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    return (
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1px solid #d1d5db',
+          borderRadius: 10,
+          padding: '6px 8px',
+          fontSize: 11,
+          boxShadow: '0 8px 20px rgba(15,23,42,0.1)'
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+        {payload.map(entry => (
+          <div key={entry.dataKey} style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: entry.color }}>{entry.name}</span>
+            <span style={{ marginLeft: 8 }}>{entry.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
-  // Tabs
+  // ---- Tabs ----
 
   const OverviewTab = () => (
     <TabContainer>
@@ -313,32 +369,33 @@ const PostgreSQLMonitor = () => {
             <div style={{ height: 260 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={last30Days}>
+                  <defs>
+                    <linearGradient id="qpsGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={PRIMARY_BLUE} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={PRIMARY_BLUE} stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="tpsGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={PRIMARY_GREEN} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={PRIMARY_GREEN} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6b7280' }} />
                   <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
+                  <Tooltip content={<FancyTooltip />} />
                   <Legend />
                   <Area
                     type="monotone"
                     dataKey="qps"
-                    stroke="#2563eb"
-                    fill="#60a5fa"
-                    fillOpacity={0.3}
+                    stroke={PRIMARY_BLUE}
+                    fill="url(#qpsGrad)"
                     name="QPS"
                   />
                   <Area
                     type="monotone"
                     dataKey="tps"
-                    stroke="#22c55e"
-                    fill="#4ade80"
-                    fillOpacity={0.3}
+                    stroke={PRIMARY_GREEN}
+                    fill="url(#tpsGrad)"
                     name="TPS"
                   />
                   <Line
@@ -347,6 +404,7 @@ const PostgreSQLMonitor = () => {
                     stroke="#eab308"
                     strokeWidth={2}
                     name="Avg Query (ms)"
+                    dot={false}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -369,25 +427,36 @@ const PostgreSQLMonitor = () => {
                 title="Avg Query Time"
                 value={metrics.avgQueryTime.toFixed(1)}
                 unit="ms"
+                color="#eab308"
+                showSpark
               />
               <MetricCard
                 icon={AlertCircle}
                 title="Slow Queries"
                 value={metrics.slowQueryCount}
+                color={PRIMARY_RED}
               />
-              <MetricCard icon={Zap} title="QPS" value={metrics.qps} />
-              <MetricCard icon={Activity} title="TPS" value={metrics.tps} />
+              <MetricCard
+                icon={Zap}
+                title="QPS"
+                value={metrics.qps}
+                color={PRIMARY_BLUE}
+                showSpark
+              />
+              <MetricCard icon={Activity} title="TPS" value={metrics.tps} color={PRIMARY_GREEN} />
               <MetricCard
                 icon={Server}
                 title="CPU Usage"
                 value={metrics.cpuUsage.toFixed(1)}
                 unit="%"
+                color={PRIMARY_ORANGE}
               />
               <MetricCard
                 icon={Database}
                 title="Memory Usage"
                 value={metrics.memoryUsage.toFixed(1)}
                 unit="%"
+                color={PRIMARY_BLUE}
               />
             </div>
           )}
@@ -400,10 +469,10 @@ const PostgreSQLMonitor = () => {
             'Operations Per Second',
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
-                { label: 'SELECT', value: metrics.selectPerSec, color: '#2563eb' },
-                { label: 'INSERT', value: metrics.insertPerSec, color: '#22c55e' },
-                { label: 'UPDATE', value: metrics.updatePerSec, color: '#f97316' },
-                { label: 'DELETE', value: metrics.deletePerSec, color: '#ef4444' }
+                { label: 'SELECT', value: metrics.selectPerSec, color: PRIMARY_BLUE },
+                { label: 'INSERT', value: metrics.insertPerSec, color: PRIMARY_GREEN },
+                { label: 'UPDATE', value: metrics.updatePerSec, color: PRIMARY_ORANGE },
+                { label: 'DELETE', value: metrics.deletePerSec, color: PRIMARY_RED }
               ].map(row => (
                 <div
                   key={row.label}
@@ -453,20 +522,16 @@ const PostgreSQLMonitor = () => {
                     ]}
                     cx="50%"
                     cy="50%"
+                    innerRadius={45}
                     outerRadius={80}
+                    paddingAngle={3}
                     dataKey="value"
                   >
-                    <Cell fill="#2563eb" />
-                    <Cell fill="#22c55e" />
+                    <Cell fill={PRIMARY_BLUE} />
+                    <Cell fill={PRIMARY_GREEN} />
                   </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
+                  <Tooltip content={<FancyTooltip />} />
+                  <Legend />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -474,7 +539,7 @@ const PostgreSQLMonitor = () => {
         </div>
       </div>
     </TabContainer>
-  );
+  ); [file:1]
 
   const PerformanceTab = () => (
     <TabContainer>
@@ -488,15 +553,8 @@ const PostgreSQLMonitor = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="range" tick={{ fontSize: 11, fill: '#6b7280' }} />
                   <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
-                  <Bar dataKey="count" fill="#2563eb" />
+                  <Tooltip content={<FancyTooltip />} />
+                  <Bar dataKey="count" fill={PRIMARY_BLUE} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -517,15 +575,28 @@ const PostgreSQLMonitor = () => {
                 title="Avg Query Time"
                 value={metrics.avgQueryTime.toFixed(1)}
                 unit="ms"
+                color="#eab308"
+                showSpark
               />
               <MetricCard
                 icon={AlertCircle}
                 title="Slow Queries"
                 value={metrics.slowQueryCount}
                 subtitle="> 1s"
+                color={PRIMARY_RED}
               />
-              <MetricCard icon={Zap} title="Queries/sec" value={metrics.qps} />
-              <MetricCard icon={Activity} title="Transactions/sec" value={metrics.tps} />
+              <MetricCard
+                icon={Zap}
+                title="Queries/sec"
+                value={metrics.qps}
+                color={PRIMARY_BLUE}
+              />
+              <MetricCard
+                icon={Activity}
+                title="Transactions/sec"
+                value={metrics.tps}
+                color={PRIMARY_GREEN}
+              />
             </div>
           )}
         </div>
@@ -540,28 +611,25 @@ const PostgreSQLMonitor = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6b7280' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderRadius: 12,
-                    border: '1px solid #d1d5db',
-                    fontSize: 11
-                  }}
-                />
+                <Tooltip content={<FancyTooltip />} />
                 <Legend />
                 <Line
                   type="monotone"
                   dataKey="avgQuery"
-                  stroke="#2563eb"
+                  stroke={PRIMARY_BLUE}
                   strokeWidth={2}
                   name="Avg Query (ms)"
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="errors"
-                  stroke="#ef4444"
+                  stroke={PRIMARY_RED}
                   strokeWidth={2}
                   name="Errors"
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -569,7 +637,7 @@ const PostgreSQLMonitor = () => {
         )}
       </div>
     </TabContainer>
-  );
+  ); [file:1]
 
   const ResourcesTab = () => (
     <TabContainer>
@@ -587,6 +655,7 @@ const PostgreSQLMonitor = () => {
           value={metrics.cpuUsage.toFixed(1)}
           unit="%"
           subtitle={`Avg: ${metrics.cpuAvg.toFixed(1)}%`}
+          color={PRIMARY_ORANGE}
         />
         <MetricCard
           icon={Database}
@@ -594,6 +663,7 @@ const PostgreSQLMonitor = () => {
           value={metrics.memoryUsage.toFixed(1)}
           unit="%"
           subtitle={`${metrics.memoryUsed}GB / ${metrics.memoryAllocated}GB`}
+          color={PRIMARY_BLUE}
         />
         <MetricCard
           icon={HardDrive}
@@ -601,6 +671,7 @@ const PostgreSQLMonitor = () => {
           value={metrics.diskUsed.toFixed(1)}
           unit="%"
           subtitle={`${metrics.diskAvailable}GB free`}
+          color={PRIMARY_GREEN}
         />
       </div>
 
@@ -623,7 +694,7 @@ const PostgreSQLMonitor = () => {
                     {metrics.cpuUsage.toFixed(1)}%
                   </span>
                 </div>
-                <ProgressBar value={metrics.cpuUsage} max={100} />
+                <ProgressBar value={metrics.cpuUsage} max={100} color={PRIMARY_ORANGE} />
               </div>
               <div>
                 <div
@@ -639,7 +710,11 @@ const PostgreSQLMonitor = () => {
                     {metrics.memoryUsed}GB / {metrics.memoryAllocated}GB
                   </span>
                 </div>
-                <ProgressBar value={metrics.memoryUsed} max={metrics.memoryAllocated} />
+                <ProgressBar
+                  value={metrics.memoryUsed}
+                  max={metrics.memoryAllocated}
+                  color={PRIMARY_GREEN}
+                />
               </div>
               <div>
                 <div
@@ -659,6 +734,7 @@ const PostgreSQLMonitor = () => {
                 <ProgressBar
                   value={metrics.diskTotal - metrics.diskAvailable}
                   max={metrics.diskTotal}
+                  color={PRIMARY_BLUE}
                 />
               </div>
             </div>
@@ -686,7 +762,7 @@ const PostgreSQLMonitor = () => {
                   </div>
                   <div style={{ fontSize: 11, color: '#6b7280' }}>ops/sec</div>
                 </div>
-                <TrendingUp size={22} color="#2563eb" />
+                <TrendingUp size={22} color={PRIMARY_BLUE} />
               </div>
               <div
                 style={{
@@ -706,7 +782,7 @@ const PostgreSQLMonitor = () => {
                   </div>
                   <div style={{ fontSize: 11, color: '#6b7280' }}>ops/sec</div>
                 </div>
-                <TrendingDown size={22} color="#22c55e" />
+                <TrendingDown size={22} color={PRIMARY_GREEN} />
               </div>
               <div
                 style={{
@@ -726,7 +802,7 @@ const PostgreSQLMonitor = () => {
                   </div>
                   <div style={{ fontSize: 11, color: '#6b7280' }}>ms avg</div>
                 </div>
-                <Clock size={22} color="#f97316" />
+                <Clock size={22} color={PRIMARY_ORANGE} />
               </div>
             </div>
           )}
@@ -742,20 +818,13 @@ const PostgreSQLMonitor = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#ffffff',
-                    borderRadius: 12,
-                    border: '1px solid #d1d5db',
-                    fontSize: 11
-                  }}
-                />
+                <Tooltip content={<FancyTooltip />} />
                 <Legend />
                 <Area
                   type="monotone"
                   dataKey="orders"
                   stackId="1"
-                  stroke="#2563eb"
+                  stroke={PRIMARY_BLUE}
                   fill="#60a5fa"
                   fillOpacity={0.3}
                   name="Orders (MB)"
@@ -764,7 +833,7 @@ const PostgreSQLMonitor = () => {
                   type="monotone"
                   dataKey="customers"
                   stackId="1"
-                  stroke="#22c55e"
+                  stroke={PRIMARY_GREEN}
                   fill="#4ade80"
                   fillOpacity={0.3}
                   name="Customers (MB)"
@@ -773,7 +842,7 @@ const PostgreSQLMonitor = () => {
                   type="monotone"
                   dataKey="products"
                   stackId="1"
-                  stroke="#f97316"
+                  stroke={PRIMARY_ORANGE}
                   fill="#fdba74"
                   fillOpacity={0.3}
                   name="Products (MB)"
@@ -793,7 +862,7 @@ const PostgreSQLMonitor = () => {
         )}
       </div>
     </TabContainer>
-  );
+  ); [file:1]
 
   const ReliabilityTab = () => (
     <TabContainer>
@@ -810,24 +879,28 @@ const PostgreSQLMonitor = () => {
           title="Availability"
           value={metrics.availability}
           unit="%"
+          color={PRIMARY_GREEN}
         />
         <MetricCard
           icon={XCircle}
           title="Downtime Events"
           value={metrics.downtimeIncidents}
+          color={PRIMARY_RED}
         />
         <MetricCard
           icon={AlertCircle}
           title="Error Rate"
           value={metrics.errorRate.toFixed(1)}
           unit="/min"
+          color={PRIMARY_ORANGE}
         />
-        <MetricCard icon={Lock} title="Deadlocks" value={metrics.deadlockCount} />
+        <MetricCard icon={Lock} title="Deadlocks" value={metrics.deadlockCount} color="#4b5563" />
         <MetricCard
           icon={Clock}
           title="Lock Wait Time"
           value={metrics.lockWaitTime}
           unit="ms"
+          color={PRIMARY_BLUE}
         />
       </div>
 
@@ -853,6 +926,7 @@ const PostgreSQLMonitor = () => {
                 <ProgressBar
                   value={metrics.activeConnections}
                   max={metrics.maxConnections}
+                  color={PRIMARY_GREEN}
                 />
               </div>
               <div>
@@ -872,7 +946,7 @@ const PostgreSQLMonitor = () => {
                 <ProgressBar
                   value={metrics.idleConnections}
                   max={metrics.maxConnections}
-                  color="#2563eb"
+                  color={PRIMARY_BLUE}
                 />
               </div>
               <div
@@ -945,7 +1019,7 @@ const PostgreSQLMonitor = () => {
                     <ProgressBar
                       value={error.percentage}
                       max={100}
-                      color="#ef4444"
+                      color={PRIMARY_RED}
                       showPercentage={false}
                     />
                   </div>
@@ -965,11 +1039,11 @@ const PostgreSQLMonitor = () => {
             'Table Size Distribution',
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
-                { name: 'Orders', size: 300, color: '#2563eb' },
-                { name: 'Customers', size: 250, color: '#22c55e' },
-                { name: 'Products', size: 180, color: '#f97316' },
+                { name: 'Orders', size: 300, color: PRIMARY_BLUE },
+                { name: 'Customers', size: 250, color: PRIMARY_GREEN },
+                { name: 'Products', size: 180, color: PRIMARY_ORANGE },
                 { name: 'Transactions', size: 400, color: '#a855f7' },
-                { name: 'Others', size: 120, color: '#ef4444' }
+                { name: 'Others', size: 120, color: PRIMARY_RED }
               ].map(table => (
                 <div key={table.name}>
                   <div
@@ -983,11 +1057,7 @@ const PostgreSQLMonitor = () => {
                     <span>{table.name}</span>
                     <span style={{ color: '#6b7280' }}>{table.size} GB</span>
                   </div>
-                  <ProgressBar
-                    value={table.size}
-                    max={500}
-                    color={table.color}
-                  />
+                  <ProgressBar value={table.size} max={500} color={table.color} />
                 </div>
               ))}
               <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
@@ -1002,7 +1072,7 @@ const PostgreSQLMonitor = () => {
         </div>
       </div>
     </TabContainer>
-  );
+  ); [file:1]
 
   const IndexesTab = () => (
     <TabContainer>
@@ -1019,16 +1089,19 @@ const PostgreSQLMonitor = () => {
           title="Index Hit Ratio"
           value={metrics.indexHitRatio.toFixed(1)}
           unit="%"
+          color={PRIMARY_GREEN}
         />
         <MetricCard
           icon={AlertTriangle}
           title="Missing Indexes"
           value={metrics.missingIndexes}
+          color={PRIMARY_ORANGE}
         />
         <MetricCard
           icon={AlertCircle}
           title="Unused Indexes"
           value={metrics.unusedIndexes}
+          color={PRIMARY_RED}
         />
       </div>
 
@@ -1050,24 +1123,19 @@ const PostgreSQLMonitor = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="name" tick={{ fill: '#6b7280' }} />
                   <YAxis tick={{ fill: '#6b7280' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
-                    }}
-                  />
+                  <Tooltip content={<FancyTooltip />} />
                   <Legend />
                   <Bar
                     dataKey="tableScanRate"
                     name="Table Scan Rate (%)"
-                    fill="#f97316"
+                    fill={PRIMARY_ORANGE}
+                    radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     dataKey="indexHitRatio"
                     name="Index Hit Ratio (%)"
-                    fill="#22c55e"
+                    fill={PRIMARY_GREEN}
+                    radius={[4, 4, 0, 0]}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -1097,10 +1165,10 @@ const PostgreSQLMonitor = () => {
                   max={100}
                   color={
                     metrics.fragmentationLevel > 40
-                      ? '#ef4444'
+                      ? PRIMARY_RED
                       : metrics.fragmentationLevel > 20
-                      ? '#f97316'
-                      : '#22c55e'
+                      ? PRIMARY_ORANGE
+                      : PRIMARY_GREEN
                   }
                   showPercentage
                 />
@@ -1114,7 +1182,7 @@ const PostgreSQLMonitor = () => {
         </div>
       </div>
     </TabContainer>
-  );
+  ); [file:1]
 
   // -------- MAIN SHELL --------
   const sidebarWidth = sidebarCollapsed ? 64 : 220;
@@ -1230,7 +1298,7 @@ const PostgreSQLMonitor = () => {
                   justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
                 }}
               >
-                <Icon size={16} color={active ? '#2563eb' : '#6b7280'} />
+                <Icon size={16} color={active ? PRIMARY_BLUE : '#6b7280'} />
                 {!sidebarCollapsed && (
                   <span style={{ fontSize: 12 }}>{item.label}</span>
                 )}
@@ -1263,7 +1331,6 @@ const PostgreSQLMonitor = () => {
             </div>
           )}
 
-          {/* auto-hide / toggle button */}
           <button
             onClick={() => setSidebarCollapsed(prev => !prev)}
             style={{
@@ -1360,17 +1427,23 @@ const PostgreSQLMonitor = () => {
         <main
           style={{
             padding: '14px 18px 18px',
-            display: 'flex',
-            justifyContent: 'center',
             width: '100%',
             boxSizing: 'border-box'
           }}
         >
-          {activeTab === 'overview' && <OverviewTab />}
-          {activeTab === 'performance' && <PerformanceTab />}
-          {activeTab === 'resources' && <ResourcesTab />}
-          {activeTab === 'reliability' && <ReliabilityTab />}
-          {activeTab === 'indexes' && <IndexesTab />}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              width: '100%'
+            }}
+          >
+            {activeTab === 'overview' && <OverviewTab />}
+            {activeTab === 'performance' && <PerformanceTab />}
+            {activeTab === 'resources' && <ResourcesTab />}
+            {activeTab === 'reliability' && <ReliabilityTab />}
+            {activeTab === 'indexes' && <IndexesTab />}
+          </div>
         </main>
       </div>
     </div>
