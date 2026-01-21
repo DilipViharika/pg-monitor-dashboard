@@ -161,7 +161,7 @@ const PostgreSQLMonitor = () => {
         diskIOLatency: 5 + Math.random() * 10,
         errorRate: Math.random() * 5
       }));
-    }, 3000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, []);
