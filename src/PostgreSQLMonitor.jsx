@@ -443,7 +443,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1 }}>
           {sectionCard(
             'Read vs Write Ratio', // Adjusted card title for consistency
-            <div style={{ height: 220 }}>
+            <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -453,7 +453,7 @@ const PostgreSQLMonitor = () => {
                     ]}
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
+                    outerRadius={60}
                     dataKey="value"
                   >
                     <Cell fill="#2563eb" />
