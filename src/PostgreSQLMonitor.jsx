@@ -453,7 +453,7 @@ const PostgreSQLMonitor = () => {
                     ]}
                     cx="50%"
                     cy="50%"
-                    outerRadius={60}
+                    outerRadius={50}
                     dataKey="value"
                   >
                     <Cell fill="#2563eb" />
