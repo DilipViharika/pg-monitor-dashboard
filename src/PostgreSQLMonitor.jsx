@@ -6,8 +6,6 @@ import {
   Zap,
   Clock,
   AlertTriangle,
-  TrendingUp,
-  TrendingDown,
   Server,
   Lock,
   AlertCircle,
@@ -15,539 +13,537 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
-  Crosshair
+  Moon,
+  Sun,
+  Search,
+  Filter,
+  RefreshCw,
+  Layers,
+  Copy,
+  Terminal
 } from 'lucide-react';
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  ComposedChart,
-  ScatterChart,
-  Scatter,
-  ZAxis,
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Treemap
+  LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  ComposedChart, ScatterChart, Scatter, ZAxis, Radar, RadarChart, 
+  PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 
-const PRIMARY_BLUE = '#2563eb';
-const PRIMARY_GREEN = '#22c55e';
-const PRIMARY_ORANGE = '#f97316';
-const PRIMARY_RED = '#ef4444';
-const PRIMARY_PURPLE = '#8b5cf6';
+// --- Theme & Constants ---
+const THEME = {
+  light: {
+    bg: '#f8fafc',
+    sidebar: '#ffffff',
+    card: '#ffffff',
+    text: '#0f172a',
+    textSec: '#64748b',
+    border: '#e2e8f0',
+    hover: '#f1f5f9',
+    chartGrid: '#e2e8f0',
+    tooltip: '#ffffff'
+  },
+  dark: {
+    bg: '#0f172a',
+    sidebar: '#1e293b',
+    card: '#1e293b',
+    text: '#f8fafc',
+    textSec: '#94a3b8',
+    border: '#334155',
+    hover: '#334155',
+    chartGrid: '#334155',
+    tooltip: '#1e293b'
+  }
+};
+
+const COLORS = {
+  blue: '#3b82f6',
+  green: '#22c55e',
+  orange: '#f97316',
+  red: '#ef4444',
+  purple: '#a855f7',
+  cyan: '#06b6d4',
+  yellow: '#eab308'
+};
 
 const PostgreSQLMonitor = () => {
+  // --- State ---
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  const [timeRange, setTimeRange] = useState('24h');
+  const [loading, setLoading] = useState(false);
 
-  // --- State Data ---
+  const theme = darkMode ? THEME.dark : THEME.light;
+
+  // --- Mock Data States ---
   const [metrics, setMetrics] = useState({
-    avgQueryTime: 45.2,
-    slowQueryCount: 23,
-    qps: 1997, // Matched image
-    tps: 892,
-    cpuUsage: 42.5,
-    memoryUsage: 67.8,
-    diskUsed: 54.3,
-    diskTotal: 1000,
-    diskIOReadRate: 245,
-    diskIOWriteRate: 128,
-    diskIOLatency: 8.5,
-    activeConnections: 43, // Matched image
-    maxConnections: 100,
-    availability: 99.94,
-    downtimeIncidents: 2,
-    errorRate: 3.2,
-    deadlockCount: 5,
-    lockWaitTime: 234,
-    indexHitRatio: 96.7,
-    missingIndexes: 7,
-    unusedIndexes: 12,
-    tableScanRate: 15.3,
-    fragmentationLevel: 23.4
+    qps: 0, tps: 0, activeConn: 0, cpu: 0, mem: 0,
+    walRate: 0, replicationLag: 0, bufferHit: 99.8,
+    deadlocks: 0, tempFiles: 0, indexHit: 98.2,
+    dbSize: 450, dbGrowth: 2.3
   });
+  
+  const [timeseriesData, setTimeseriesData] = useState([]);
+  const [queryScatterData, setQueryScatterData] = useState([]);
+  const [healthRadar, setHealthRadar] = useState([]);
+  const [topQueries, setTopQueries] = useState([]);
 
-  // Advanced Data States
-  const [timeSeriesData, setTimeSeriesData] = useState([]); 
-  const [queryScatterData, setQueryScatterData] = useState([]); 
-  const [storageTreeData, setStorageTreeData] = useState([]); 
-  const [radarData, setRadarData] = useState([]); 
-  const [hourlyHeatmap, setHourlyHeatmap] = useState([]); 
-  const [topErrors, setTopErrors] = useState([]);
-  const [recentAlerts, setRecentAlerts] = useState([]);
-
-  // --- Data Generation ---
+  // --- Data Simulation ---
+  
+  // Simulate Initial Data Fetch
   useEffect(() => {
-    // 1. Time Series (Dual Axis: TPS vs Latency)
-    const series = [];
-    for (let i = 0; i < 24; i++) {
-      series.push({
-        time: `${i}:00`,
-        tps: Math.floor(Math.random() * 500) + 800,
-        latency: Math.random() * 40 + 20,
-      });
-    }
-    setTimeSeriesData(series);
+    generateData(timeRange);
+  }, [timeRange]);
 
-    // 2. Query Scatter
-    const queries = Array.from({ length: 40 }, (_, i) => ({
-      id: i,
-      duration: Math.random() * 800 + 10,
-      frequency: Math.floor(Math.random() * 1000) + 10,
-      impact: Math.floor(Math.random() * 100),
-      type: Math.random() > 0.7 ? 'WRITE' : 'READ'
-    }));
-    setQueryScatterData(queries);
-
-    // 3. Storage Treemap
-    setStorageTreeData([
-      {
-        name: 'public',
-        children: [
-          { name: 'orders', size: 4500 },
-          { name: 'order_items', size: 3200 },
-          { name: 'logs_2024', size: 2100 },
-          { name: 'users', size: 1500 },
-        ]
-      },
-      {
-        name: 'analytics',
-        children: [
-          { name: 'events_raw', size: 6000 },
-          { name: 'agg_daily', size: 1200 },
-        ]
-      }
-    ]);
-
-    // 4. Radar (Health Dimensions)
-    setRadarData([
-      { subject: 'CPU Efficiency', A: 85, fullMark: 100 },
-      { subject: 'Memory Health', A: 70, fullMark: 100 },
-      { subject: 'Disk I/O', A: 90, fullMark: 100 },
-      { subject: 'Conn. Pool', A: 65, fullMark: 100 },
-      { subject: 'Cache Hit', A: 99, fullMark: 100 },
-      { subject: 'Lock Contention', A: 80, fullMark: 100 },
-    ]);
-
-    // 5. Hourly Heatmap
-    const heatmap = [];
-    for(let i=0; i<24; i++) {
-        heatmap.push({ hour: i, load: Math.floor(Math.random() * 100) })
-    }
-    setHourlyHeatmap(heatmap);
-
-    setTopErrors([
-      { type: 'Connection Timeout', count: 145, percentage: 38 },
-      { type: 'Deadlock Detected', count: 89, percentage: 23 },
-      { type: 'Query Timeout', count: 67, percentage: 17 },
-      { type: 'Lock Wait Timeout', count: 45, percentage: 12 },
-      { type: 'Constraint Violation', count: 38, percentage: 10 }
-    ]);
-
-    setRecentAlerts([
-      { severity: 'critical', message: 'CPU usage exceeded 90%', time: '5 min ago' },
-      { severity: 'warning', message: 'High slow queries', time: '12 min ago' },
-      { severity: 'critical', message: 'Pool near capacity', time: '18 min ago' },
-    ]);
-  }, []);
-
-  // Live simulation
+  // Simulate Live Ticker
   useEffect(() => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
         ...prev,
-        qps: Math.floor(Math.random() * 200) + 1800,
-        tps: Math.floor(Math.random() * 100) + 800,
-        activeConnections: Math.floor(Math.random() * 5) + 40 // keep around 43 for demo
+        qps: Math.floor(Math.random() * 500) + 1500,
+        tps: Math.floor(Math.random() * 200) + 600,
+        cpu: Math.max(10, Math.min(90, prev.cpu + (Math.random() - 0.5) * 5)),
+        walRate: Math.floor(Math.random() * 5) + 2, // MB/s
+        activeConn: Math.floor(Math.random() * 10) + 40
       }));
+
+      // Live update scatter plot (simulating new queries)
+      setQueryScatterData(prev => {
+        const newData = [...prev.slice(1), {
+          id: Math.random(),
+          duration: Math.random() * 500 + 10,
+          frequency: Math.floor(Math.random() * 100),
+          type: Math.random() > 0.8 ? 'Slow' : 'Normal'
+        }];
+        return newData;
+      });
+
     }, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  // --- Helper Components ---
+  const generateData = (range) => {
+    setLoading(true);
+    // Simulate network delay
+    setTimeout(() => {
+      const points = range === '1h' ? 60 : range === '24h' ? 24 : 7;
+      
+      // Timeseries (WAL, Connections, TPS)
+      const tsData = Array.from({ length: points }, (_, i) => ({
+        time: i,
+        tps: Math.floor(Math.random() * 500) + 500,
+        wal: Math.floor(Math.random() * 10) + 2,
+        connections: Math.floor(Math.random() * 30) + 20,
+        cpu: Math.floor(Math.random() * 40) + 10,
+        ioWait: Math.random() * 10
+      }));
+      setTimeseriesData(tsData);
 
-  const FancyTooltip = ({ active, payload, label }) => {
-    if (!active || !payload || !payload.length) return null;
-    return (
-      <div style={{ background: '#fff', border: '1px solid #ccc', padding: '10px', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-        <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>{label}</p>
-        {payload.map((entry, index) => (
-          <div key={index} style={{ color: entry.color }}>
-            {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}
-            {entry.unit}
-          </div>
-        ))}
-      </div>
-    );
+      // Scatter (Query Performance)
+      const scatter = Array.from({ length: 50 }, () => ({
+        duration: Math.random() * 1000, // ms
+        frequency: Math.floor(Math.random() * 5000), // calls
+        rows: Math.floor(Math.random() * 10000),
+        type: Math.random() > 0.9 ? 'Critical' : 'Normal' 
+      }));
+      setQueryScatterData(scatter);
+
+      // Radar (Health Balance)
+      setHealthRadar([
+        { subject: 'Availability', A: 99, fullMark: 100 },
+        { subject: 'Performance', A: 85, fullMark: 100 },
+        { subject: 'Capacity', A: 65, fullMark: 100 },
+        { subject: 'Security', A: 90, fullMark: 100 },
+        { subject: 'Reliability', A: 95, fullMark: 100 },
+        { subject: 'Maintenance', A: 70, fullMark: 100 },
+      ]);
+
+      // Top Queries List
+      setTopQueries([
+        { query: 'SELECT * FROM orders WHERE user_id = $1', calls: 45200, avg: 12.4, total: 560480, rows: 45 },
+        { query: 'UPDATE inventory SET count = count - 1', calls: 23100, avg: 45.2, total: 1044120, rows: 1 },
+        { query: 'SELECT count(*) FROM analytics_events', calls: 540, avg: 1240.5, total: 669870, rows: 1 },
+        { query: 'INSERT INTO audit_logs VALUES (...)', calls: 89000, avg: 4.1, total: 364900, rows: 1 },
+        { query: 'SELECT * FROM products JOIN categories...', calls: 1200, avg: 156.0, total: 187200, rows: 250 },
+      ]);
+
+      setMetrics(prev => ({ ...prev, activeConn: 45, replicationLag: 0.02 }));
+      setLoading(false);
+    }, 600);
   };
 
-  const CustomizedTreemapContent = (props) => {
-    const { depth, x, y, width, height, name } = props;
-    return (
-      <g>
-        <rect
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          style={{
-            fill: depth < 2 ? PRIMARY_BLUE : '#ffffff',
-            stroke: '#fff',
-            strokeWidth: 2 / (depth + 1e-10),
-            fillOpacity: 1 / (depth + 2),
-          }}
-        />
-        {depth === 2 && width > 50 && height > 30 && (
-          <text
-            x={x + width / 2}
-            y={y + height / 2}
-            textAnchor="middle"
-            fill="#fff"
-            fontSize={11}
-            fontWeight={600}
-            style={{ pointerEvents: 'none' }}
-          >
-            {name}
-          </text>
-        )}
-      </g>
-    );
-  };
+  // --- Components ---
 
-  const TabGrid = ({ children }) => (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {children}
+  const Card = ({ title, children, action }) => (
+    <div style={{
+      backgroundColor: theme.card,
+      borderRadius: 16,
+      border: `1px solid ${theme.border}`,
+      padding: 20,
+      display: 'flex',
+      flexDirection: 'column',
+      boxShadow: darkMode ? '0 4px 6px -1px rgba(0, 0, 0, 0.5)' : '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+      transition: 'all 0.3s ease'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: theme.text }}>{title}</h3>
+        {action}
+      </div>
+      <div style={{ flex: 1 }}>{children}</div>
     </div>
   );
 
-  const sectionCard = (title, children) => (
-    <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: '#1e293b' }}>{title}</h2>
-      </div>
-      <div style={{ flex: 1, minHeight: 0 }}>{children}</div>
-    </div>
-  );
-
-  const MetricCard = ({ icon: Icon, title, value, unit, color }) => (
-    <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '20px', display: 'flex', alignItems: 'flex-start', gap: 16, boxShadow: '0 2px 4px -1px rgba(0,0,0,0.05)' }}>
-       <div style={{ padding: 10, borderRadius: 10, background: `${color}15` }}>
-          <Icon size={20} color={color} />
-       </div>
-       <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500, marginBottom: 4 }}>{title}</span>
-          <div style={{ display: 'flex', alignItems: 'baseline' }}>
-             <span style={{ fontSize: 24, fontWeight: 700, color: '#1e293b' }}>{value}</span>
-             {unit && <span style={{ marginLeft: 4, fontSize: 13, color: '#94a3b8' }}>{unit}</span>}
-          </div>
-       </div>
-    </div>
-  );
-
-  const ProgressBar = ({ value, max, color }) => (
-    <div style={{ width: '100%' }}>
-      <div style={{ width: '100%', backgroundColor: '#f1f5f9', borderRadius: 999, height: 6, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${Math.min((value / max) * 100, 100)}%`, backgroundColor: color || PRIMARY_GREEN, borderRadius: 999 }} />
-      </div>
-    </div>
-  );
-
-  // --- TABS ---
-
-  const OverviewTab = () => (
-    <TabGrid>
-      {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 20, height: 400 }}>
-        {sectionCard(
-          'Load vs Latency Correlation',
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={timeSeriesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-              <YAxis yAxisId="left" orientation="left" stroke={PRIMARY_BLUE} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="right" orientation="right" stroke={PRIMARY_ORANGE} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<FancyTooltip />} />
-              <Legend iconType="plainline" />
-              <Bar yAxisId="left" dataKey="tps" name="TPS" fill={PRIMARY_BLUE} radius={[4, 4, 0, 0]} fillOpacity={0.9} barSize={20} />
-              <Line yAxisId="right" type="monotone" dataKey="latency" name="Latency (ms)" stroke={PRIMARY_ORANGE} strokeWidth={3} dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        )}
-
-        {sectionCard(
-          'System Health Radar',
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-              <PolarGrid stroke="#e2e8f0" />
-              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#64748b' }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-              <Radar name="Health" dataKey="A" stroke={PRIMARY_GREEN} strokeWidth={2} fill={PRIMARY_GREEN} fillOpacity={0.3} />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Metrics Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 20 }}>
-        <MetricCard icon={Zap} title="QPS" value={metrics.qps} color={PRIMARY_BLUE} />
-        <MetricCard icon={Clock} title="Avg Query" value={metrics.avgQueryTime.toFixed(1)} unit="ms" color="#eab308" />
-        <MetricCard icon={Activity} title="Active Conn" value={metrics.activeConnections} color={PRIMARY_PURPLE} />
-        <MetricCard icon={CheckCircle} title="Availability" value={metrics.availability} unit="%" color={PRIMARY_GREEN} />
-      </div>
-    </TabGrid>
-  );
-
-  const PerformanceTab = () => (
-    <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 20 }}>
-        {sectionCard(
-          'Query Quadrant (Freq vs Duration)',
-          <div style={{ height: 350 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" dataKey="duration" name="Duration" unit="ms" label={{ value: 'Duration', position: 'bottom', offset: 0, fontSize: 11 }} tick={{fontSize: 11}}/>
-                <YAxis type="number" dataKey="frequency" name="Frequency" label={{ value: 'Freq', angle: -90, position: 'insideLeft', fontSize: 11 }} tick={{fontSize: 11}}/>
-                <ZAxis type="number" dataKey="impact" range={[60, 400]} name="Impact" />
-                <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                <Scatter name="Read" data={queryScatterData.filter(d => d.type === 'READ')} fill={PRIMARY_BLUE} />
-                <Scatter name="Write" data={queryScatterData.filter(d => d.type === 'WRITE')} fill={PRIMARY_RED} shape="triangle" />
-                <Legend />
-              </ScatterChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {sectionCard(
-          'Hourly Activity Heatmap',
-          <div style={{ height: 350 }}>
-             <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={hourlyHeatmap} layout="vertical" margin={{ left: 10 }}>
-                   <XAxis type="number" hide />
-                   <YAxis dataKey="hour" type="category" width={30} tick={{fontSize: 11}} />
-                   <Tooltip />
-                   <Bar dataKey="load" name="Load Intensity" barSize={12} radius={[0, 4, 4, 0]}>
-                     {hourlyHeatmap.map((entry, index) => (
-                         <Cell key={`cell-${index}`} fill={entry.load > 80 ? PRIMARY_RED : entry.load > 50 ? PRIMARY_ORANGE : PRIMARY_BLUE} />
-                     ))}
-                   </Bar>
-                </BarChart>
-             </ResponsiveContainer>
+  const StatBox = ({ label, value, unit, trend, trendVal, icon: Icon, color }) => (
+    <div style={{
+      backgroundColor: theme.card,
+      border: `1px solid ${theme.border}`,
+      borderRadius: 12,
+      padding: 16,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+        <div style={{ 
+          padding: 8, 
+          borderRadius: 8, 
+          backgroundColor: `${color}20`,
+          color: color
+        }}>
+          <Icon size={18} />
+        </div>
+        {trend && (
+          <div style={{ 
+            fontSize: 11, 
+            fontWeight: 600, 
+            color: trend === 'up' ? COLORS.green : COLORS.red,
+            display: 'flex', alignItems: 'center', gap: 2
+          }}>
+            {trend === 'up' ? '+' : ''}{trendVal}%
+            {trend === 'up' ? <Activity size={10} /> : <AlertTriangle size={10} />}
           </div>
         )}
       </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 20 }}>
-        <MetricCard icon={AlertCircle} title="Slow Queries (>1s)" value={metrics.slowQueryCount} color={PRIMARY_RED} />
-        <MetricCard icon={Activity} title="Transactions/sec" value={metrics.tps} color={PRIMARY_GREEN} />
+      <div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: theme.text }}>
+          {value}
+          <span style={{ fontSize: 13, color: theme.textSec, fontWeight: 500, marginLeft: 4 }}>{unit}</span>
+        </div>
+        <div style={{ fontSize: 12, color: theme.textSec }}>{label}</div>
       </div>
-    </TabGrid>
+    </div>
   );
 
-  const ResourcesTab = () => (
-    <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 20 }}>
-        <MetricCard icon={Activity} title="CPU Usage" value={metrics.cpuUsage.toFixed(1)} unit="%" color={PRIMARY_ORANGE} />
-        <MetricCard icon={Database} title="Memory Usage" value={metrics.memoryUsage.toFixed(1)} unit="%" color={PRIMARY_BLUE} />
-        <MetricCard icon={HardDrive} title="Disk Used" value={metrics.diskUsed.toFixed(1)} unit="%" color={PRIMARY_GREEN} />
-      </div>
-
-      <div style={{ height: 400 }}>
-        {sectionCard(
-          'Storage Topology',
-          <ResponsiveContainer width="100%" height="100%">
-            <Treemap
-              data={storageTreeData}
-              dataKey="size"
-              ratio={4 / 3}
-              stroke="#fff"
-              fill="#8884d8"
-              content={<CustomizedTreemapContent />}
-            >
-              <Tooltip />
-            </Treemap>
-          </ResponsiveContainer>
-        )}
-      </div>
-    </TabGrid>
-  );
-
-  const ReliabilityTab = () => (
-    <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 20 }}>
-        <MetricCard icon={CheckCircle} title="Availability" value={metrics.availability} unit="%" color={PRIMARY_GREEN} />
-        <MetricCard icon={XCircle} title="Downtime" value={metrics.downtimeIncidents} color={PRIMARY_RED} />
-        <MetricCard icon={AlertCircle} title="Error Rate" value={metrics.errorRate.toFixed(1)} unit="/min" color={PRIMARY_ORANGE} />
-        <MetricCard icon={Lock} title="Deadlocks" value={metrics.deadlockCount} color="#4b5563" />
-        <MetricCard icon={Clock} title="Lock Wait" value={metrics.lockWaitTime} unit="ms" color={PRIMARY_BLUE} />
-      </div>
-
-      {sectionCard(
-        'Top Error Types',
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {topErrors.map((error, idx) => (
-            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13 }}>
-              <div style={{ width: 150, color: '#475569' }}>{error.type}</div>
-              <div style={{ flex: 1 }}>
-                <ProgressBar value={error.percentage} max={100} color={PRIMARY_RED} />
-              </div>
-              <div style={{ width: 40, textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>{error.percentage}%</div>
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{ 
+          backgroundColor: theme.tooltip, 
+          border: `1px solid ${theme.border}`, 
+          padding: '8px 12px', 
+          borderRadius: 8,
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' 
+        }}>
+          <p style={{ fontWeight: 600, color: theme.text, fontSize: 12, marginBottom: 4 }}>Time Point: {label}</p>
+          {payload.map((p, i) => (
+            <div key={i} style={{ fontSize: 12, color: p.color, display: 'flex', gap: 8 }}>
+              <span>{p.name}:</span>
+              <span style={{ fontWeight: 600 }}>{Number(p.value).toFixed(1)}</span>
             </div>
           ))}
         </div>
-      )}
-    </TabGrid>
-  );
+      );
+    }
+    return null;
+  };
 
-  const IndexesTab = () => (
-    <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 20 }}>
-        <MetricCard icon={TrendingUp} title="Index Hit Ratio" value={metrics.indexHitRatio.toFixed(1)} unit="%" color={PRIMARY_GREEN} />
-        <MetricCard icon={AlertTriangle} title="Missing Indexes" value={metrics.missingIndexes} color={PRIMARY_ORANGE} />
-        <MetricCard icon={AlertCircle} title="Unused Indexes" value={metrics.unusedIndexes} color={PRIMARY_RED} />
+  // --- Views ---
+
+  const DashboardView = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Top Stats Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        <StatBox icon={Zap} label="Transactions/sec" value={metrics.tps} color={COLORS.blue} trend="up" trendVal="12" />
+        <StatBox icon={Clock} label="Avg Query Latency" value={45.2} unit="ms" color={COLORS.orange} trend="down" trendVal="5" />
+        <StatBox icon={Database} label="Buffer Cache Hit" value={metrics.bufferHit} unit="%" color={COLORS.green} />
+        <StatBox icon={Activity} label="Active Connections" value={metrics.activeConn} color={COLORS.purple} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 20 }}>
-        {sectionCard(
-          'Table Scan vs Index Usage',
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+        {/* Main Mixed Chart */}
+        <Card title="Throughput & Resource Correlation">
           <div style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={[{ name: 'Usage', tableScanRate: metrics.tableScanRate, indexHitRatio: metrics.indexHitRatio }]} layout="vertical" barSize={30}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" domain={[0, 100]} tick={{fontSize: 11}} />
-                <YAxis dataKey="name" type="category" hide />
-                <Tooltip content={<FancyTooltip />} />
-                <Legend />
-                <Bar dataKey="tableScanRate" name="Scan Rate" fill={PRIMARY_ORANGE} radius={[0, 4, 4, 0]} />
-                <Bar dataKey="indexHitRatio" name="Hit Ratio" fill={PRIMARY_GREEN} radius={[0, 4, 4, 0]} />
-              </BarChart>
+              <ComposedChart data={timeseriesData}>
+                <defs>
+                  <linearGradient id="colorTps" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS.blue} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={COLORS.blue} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.chartGrid} vertical={false} />
+                <XAxis dataKey="time" hide />
+                <YAxis yAxisId="left" tick={{fill: theme.textSec, fontSize: 11}} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="right" orientation="right" tick={{fill: theme.textSec, fontSize: 11}} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend iconType="circle" />
+                <Area yAxisId="left" type="monotone" dataKey="tps" name="TPS" stroke={COLORS.blue} fill="url(#colorTps)" strokeWidth={2} />
+                <Line yAxisId="right" type="monotone" dataKey="cpu" name="CPU %" stroke={COLORS.orange} dot={false} strokeWidth={2} />
+                <Bar yAxisId="right" dataKey="wal" name="WAL (MB/s)" fill={COLORS.green} radius={[4,4,0,0]} opacity={0.6} barSize={20} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
-        )}
+        </Card>
+
+        {/* Health Radar */}
+        <Card title="Cluster Health Score">
+           <div style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart outerRadius={90} data={healthRadar}>
+                <PolarGrid stroke={theme.chartGrid} />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: theme.textSec, fontSize: 11 }} />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                <Radar name="Cluster" dataKey="A" stroke={COLORS.purple} fill={COLORS.purple} fillOpacity={0.4} />
+                <Tooltip cursor={false} contentStyle={{ backgroundColor: theme.card, borderColor: theme.border, color: theme.text }} />
+              </RadarChart>
+            </ResponsiveContainer>
+           </div>
+        </Card>
       </div>
-    </TabGrid>
-  );
 
-  const sidebarWidth = sidebarCollapsed ? 70 : 240;
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+         {/* Query Performance Scatter */}
+         <Card title="Query Performance Outliers">
+           <div style={{ height: 250 }}>
+             <ResponsiveContainer width="100%" height="100%">
+               <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                 <CartesianGrid strokeDasharray="3 3" stroke={theme.chartGrid} />
+                 <XAxis type="number" dataKey="frequency" name="Frequency" unit=" calls" tick={{fill: theme.textSec, fontSize: 11}} />
+                 <YAxis type="number" dataKey="duration" name="Duration" unit="ms" tick={{fill: theme.textSec, fontSize: 11}} />
+                 <ZAxis type="number" dataKey="rows" range={[50, 400]} name="Rows Affected" />
+                 <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
+                 <Scatter name="Queries" data={queryScatterData} fill={COLORS.cyan} shape="circle" />
+               </ScatterChart>
+             </ResponsiveContainer>
+           </div>
+         </Card>
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#f3f6fc', color: '#0f172a', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      
-      {/* SIDEBAR */}
-      <aside style={{ width: sidebarWidth, borderRight: '1px solid #e2e8f0', background: '#ffffff', display: 'flex', flexDirection: 'column', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)', flexShrink: 0, zIndex: 20 }}>
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding: sidebarCollapsed ? '0' : '0 24px', borderBottom: '1px solid #f1f5f9' }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${PRIMARY_BLUE}, ${PRIMARY_PURPLE})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Database size={18} color="#ffffff" />
-          </div>
-          {!sidebarCollapsed && <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 15, color: '#1e293b' }}>DB Monitor</span>}
-        </div>
-        
-        <div style={{ padding: '24px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {[
-            { id: 'overview', label: 'Overview', icon: Activity },
-            { id: 'performance', label: 'Performance', icon: Zap },
-            { id: 'resources', label: 'Resources', icon: HardDrive },
-            { id: 'reliability', label: 'Reliability', icon: CheckCircle },
-            { id: 'indexes', label: 'Indexes', icon: TrendingUp }
-          ].map(item => {
-            const active = activeTab === item.id;
-            return (
-              <button 
-                key={item.id} 
-                onClick={() => { setActiveTab(item.id); window.location.hash = item.id; }} 
-                style={{ 
-                  width: '100%', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 12, 
-                  padding: '12px', 
-                  borderRadius: 8, 
-                  border: 'none', 
-                  cursor: 'pointer', 
-                  background: active ? '#eff6ff' : 'transparent', 
-                  color: active ? PRIMARY_BLUE : '#64748b',
-                  transition: 'all 0.2s',
-                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
-                }}
-              >
-                <item.icon size={20} strokeWidth={active ? 2.5 : 2} />
-                {!sidebarCollapsed && <span style={{ fontSize: 14, fontWeight: 500 }}>{item.label}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ padding: 12, borderTop: '1px solid #f1f5f9' }}>
-          <button onClick={() => setSidebarCollapsed(prev => !prev)} style={{ width: '100%', borderRadius: 8, border: 'none', background: '#f8fafc', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
-            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN CONTENT */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-        
-        {/* HEADER */}
-        <header style={{ height: 64, borderBottom: '1px solid #e2e8f0', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', background: '#ffffff', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-             <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Connections</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                   <span style={{ fontSize: 16, fontWeight: 700, color: PRIMARY_BLUE }}>{metrics.activeConnections}</span>
-                   <span style={{ fontSize: 14, color: '#cbd5e1' }}>/</span>
-                   <span style={{ fontSize: 14, fontWeight: 600, color: '#64748b' }}>{metrics.maxConnections}</span>
-                </div>
-             </div>
-          </div>
-        </header>
-
-        {/* SCROLLABLE DASHBOARD AREA */}
-        <main style={{ padding: '32px', overflowY: 'auto', flex: 1 }}>
-          <div style={{ maxWidth: 1600, margin: '0 auto' }}>
-            
-            {/* ALERTS SECTION (Moved out of header) */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
-              {recentAlerts.map((alert, idx) => (
-                <div key={idx} style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 8, 
-                  padding: '8px 16px', 
-                  borderRadius: 20, 
-                  fontSize: 12, 
-                  fontWeight: 600, 
-                  background: alert.severity === 'critical' ? '#fef2f2' : alert.severity === 'warning' ? '#fff7ed' : '#f0f9ff', 
-                  color: alert.severity === 'critical' ? '#dc2626' : alert.severity === 'warning' ? '#c2410c' : '#0369a1',
-                  border: `1px solid ${alert.severity === 'critical' ? '#fecaca' : alert.severity === 'warning' ? '#fed7aa' : '#e0f2fe'}`
-                }}>
-                  <AlertTriangle size={14} />
-                  <span>{alert.message}</span>
+         {/* Advanced Metrics Table */}
+         <Card title="Deep Dive Metrics">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { label: 'Replication Lag', value: '0.02ms', color: COLORS.green, max: 100, val: 2 },
+                { label: 'Temp Files Created', value: '24 MB', color: COLORS.yellow, max: 100, val: 24 },
+                { label: 'Deadlocks (Last 1h)', value: '0', color: COLORS.red, max: 10, val: 0 },
+                { label: 'Index Hit Ratio', value: '98.2%', color: COLORS.blue, max: 100, val: 98.2 },
+                { label: 'Checkpoint Sync Time', value: '245ms', color: COLORS.purple, max: 1000, val: 245 },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13 }}>
+                  <div style={{ width: 140, color: theme.textSec }}>{item.label}</div>
+                  <div style={{ flex: 1, height: 6, backgroundColor: theme.border, borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${item.val}%`, height: '100%', backgroundColor: item.color, borderRadius: 4 }}></div>
+                  </div>
+                  <div style={{ width: 60, textAlign: 'right', fontWeight: 600, color: theme.text }}>{item.value}</div>
                 </div>
               ))}
             </div>
+         </Card>
+      </div>
+    </div>
+  );
 
-            {/* TAB CONTENT */}
-            {activeTab === 'overview' && <OverviewTab />}
-            {activeTab === 'performance' && <PerformanceTab />}
-            {activeTab === 'resources' && <ResourcesTab />}
-            {activeTab === 'reliability' && <ReliabilityTab />}
-            {activeTab === 'indexes' && <IndexesTab />}
-            
+  const QueryAnalysisView = () => (
+    <Card title="Top Resource Consuming Queries">
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', color: theme.text, fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${theme.border}`, textAlign: 'left' }}>
+              <th style={{ padding: 12, color: theme.textSec }}>Query Statement</th>
+              <th style={{ padding: 12, color: theme.textSec }}>Calls</th>
+              <th style={{ padding: 12, color: theme.textSec }}>Avg Time</th>
+              <th style={{ padding: 12, color: theme.textSec }}>Total Time</th>
+              <th style={{ padding: 12, color: theme.textSec }}>Rows</th>
+            </tr>
+          </thead>
+          <tbody>
+            {topQueries.map((q, i) => (
+              <tr key={i} style={{ borderBottom: `1px solid ${theme.border}` }}>
+                <td style={{ padding: 12, fontFamily: 'monospace', maxWidth: 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <span style={{ color: COLORS.blue }}>{q.query.split(' ')[0]}</span> {q.query.substring(q.query.indexOf(' '))}
+                </td>
+                <td style={{ padding: 12 }}>{q.calls.toLocaleString()}</td>
+                <td style={{ padding: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {q.avg > 1000 ? <AlertTriangle size={12} color={COLORS.red}/> : null}
+                    {q.avg.toFixed(1)} ms
+                  </div>
+                </td>
+                <td style={{ padding: 12 }}>{(q.total / 1000).toFixed(1)} s</td>
+                <td style={{ padding: 12 }}>{q.rows}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+
+  // --- Layout Structure ---
+
+  return (
+    <div style={{ 
+      minHeight: '100vh', 
+      backgroundColor: theme.bg, 
+      color: theme.text,
+      fontFamily: 'Inter, system-ui, sans-serif',
+      display: 'flex',
+      transition: 'background-color 0.3s ease'
+    }}>
+      {/* Sidebar */}
+      <div style={{
+        width: sidebarCollapsed ? 64 : 240,
+        backgroundColor: theme.sidebar,
+        borderRight: `1px solid ${theme.border}`,
+        padding: '20px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        transition: 'width 0.3s ease',
+        flexShrink: 0,
+        zIndex: 20
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px 20px' }}>
+          <div style={{ width: 32, height: 32, backgroundColor: COLORS.blue, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Database color="white" size={18} />
+          </div>
+          {!sidebarCollapsed && <span style={{ fontWeight: 700, fontSize: 16 }}>PgSentinel</span>}
+        </div>
+
+        {[
+          { id: 'overview', icon: Activity, label: 'Cluster Overview' },
+          { id: 'queries', icon: Terminal, label: 'Query Analyzer' },
+          { id: 'replication', icon: Copy, label: 'Replication & WAL' },
+          { id: 'indexes', icon: Layers, label: 'Index Usage' },
+          { id: 'config', icon: Server, label: 'Configuration' }
+        ].map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: 'none',
+              backgroundColor: activeTab === item.id ? (darkMode ? '#334155' : '#eff6ff') : 'transparent',
+              color: activeTab === item.id ? COLORS.blue : theme.textSec,
+              cursor: 'pointer',
+              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              transition: 'all 0.2s'
+            }}
+          >
+            <item.icon size={20} />
+            {!sidebarCollapsed && <span style={{ fontSize: 13, fontWeight: 500 }}>{item.label}</span>}
+          </button>
+        ))}
+
+        <div style={{ marginTop: 'auto', borderTop: `1px solid ${theme.border}`, paddingTop: 16 }}>
+          <button 
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            style={{ width: '100%', background: 'none', border: 'none', color: theme.textSec, cursor: 'pointer', display: 'flex', justifyContent: sidebarCollapsed ? 'center' : 'flex-end' }}
+          >
+            {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        
+        {/* Top Navigation Bar */}
+        <header style={{
+          height: 64,
+          backgroundColor: theme.sidebar,
+          borderBottom: `1px solid ${theme.border}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 24px',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600 }}>
+              {activeTab === 'overview' ? 'Production Cluster' : 
+               activeTab === 'queries' ? 'Query Analysis' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+            </h2>
+            {activeTab === 'overview' && (
+              <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 99, backgroundColor: `${COLORS.green}20`, color: COLORS.green, border: `1px solid ${COLORS.green}40` }}>
+                Healthy
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+             {/* Time Range Selector */}
+            <div style={{ display: 'flex', backgroundColor: darkMode ? '#0f172a' : '#f1f5f9', borderRadius: 6, padding: 2 }}>
+              {['1h', '24h', '7d'].map(r => (
+                <button
+                  key={r}
+                  onClick={() => setTimeRange(r)}
+                  style={{
+                    border: 'none',
+                    background: timeRange === r ? theme.card : 'transparent',
+                    color: timeRange === r ? theme.text : theme.textSec,
+                    padding: '4px 12px',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    boxShadow: timeRange === r ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+                  }}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+
+            <button 
+              onClick={() => generateData(timeRange)}
+              style={{ border: `1px solid ${theme.border}`, background: 'transparent', padding: 8, borderRadius: 8, cursor: 'pointer', color: theme.textSec }}
+            >
+              <RefreshCw size={16} className={loading ? 'spin' : ''} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }}/>
+            </button>
+
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              style={{ border: `1px solid ${theme.border}`, background: 'transparent', padding: 8, borderRadius: 8, cursor: 'pointer', color: theme.textSec }}
+            >
+              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable Dashboard Area */}
+        <main style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          <div style={{ maxWidth: 1600, margin: '0 auto' }}>
+            {activeTab === 'overview' && <DashboardView />}
+            {activeTab === 'queries' && <QueryAnalysisView />}
+            {activeTab !== 'overview' && activeTab !== 'queries' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 400, color: theme.textSec }}>
+                <Server size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
+                <h3>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Module</h3>
+                <p>This section is under construction in the demo.</p>
+              </div>
+            )}
           </div>
         </main>
       </div>
+
+      {/* Global CSS for spinner */}
+      <style>{`
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 };
