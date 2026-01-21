@@ -1251,8 +1251,7 @@ const PostgreSQLMonitor = () => {
             { id: 'overview', label: 'Overview', icon: Activity },
             { id: 'performance', label: 'Performance', icon: Zap },
             { id: 'resources', label: 'Resources', icon: HardDrive },
-            { id: 'reliability', label: 'Reliability', icon: CheckCircle }, 
-            { id: 'cluster-health', label: 'Cluster Health', icon: HeartPulse },
+            { id: 'reliability', label: 'Reliability', icon: CheckCircle },             
             { id: 'indexes', label: 'Indexes', icon: TrendingUp }
           ].map(item => {
             const Icon = item.icon;
@@ -1454,8 +1453,7 @@ const PostgreSQLMonitor = () => {
           {activeTab === 'overview' && <OverviewTab />}
           {activeTab === 'performance' && <PerformanceTab />}
           {activeTab === 'resources' && <ResourcesTab />}
-          {activeTab === 'reliability' && <ReliabilityTab />}
-          {activeTab === 'cluster-health' && <ClusterHealthTab />}
+          {activeTab === 'reliability' && <ReliabilityTab />}           
           {activeTab === 'indexes' && <IndexesTab />}
         </main>
       </div>
