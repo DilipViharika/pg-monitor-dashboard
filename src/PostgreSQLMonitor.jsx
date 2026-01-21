@@ -147,7 +147,7 @@ const PostgreSQLMonitor = () => {
       { severity: 'warning', message: 'Disk I/O latency increased', time: '35 min ago', resolved: true },
       { severity: 'info', message: 'Table fragmentation above threshold', time: '1 hour ago', resolved: false }
     ]);
-  }, []);
+  }, []); 
 
   // live updates
   useEffect(() => {
@@ -172,13 +172,13 @@ const PostgreSQLMonitor = () => {
     }, 15000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, []); 
 
   // optional URL hash sync
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
     if (hash) setActiveTab(hash);
-  }, []);
+  }, []); 
 
   const formatUptime = seconds => {
     const days = Math.floor(seconds / 86400);
@@ -203,7 +203,8 @@ const PostgreSQLMonitor = () => {
       style={{
         width: '100%',
         maxWidth: 1200,
-        margin: '0 auto',
+        marginLeft: 0,
+        marginRight: 'auto',
         display: 'grid',
         gridTemplateColumns: 'minmax(0,1fr)',
         rowGap: 16
