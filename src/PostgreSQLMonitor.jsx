@@ -1236,7 +1236,7 @@ const PostgreSQLMonitor = () => {
           {!sidebarCollapsed && (
             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>PostgreSQL Monitor</div>
-              <div style={{ fontSize: 11, color: '#6b7280' }}>Prod Cluster</div>
+              {/*<div style={{ fontSize: 11, color: '#6b7280' }}>Prod Cluster</div> */}
             </div>
           )}
         </div>
