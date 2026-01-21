@@ -73,22 +73,13 @@ const PostgreSQLMonitor = () => {
     diskIOReadRate: 245,
     diskIOWriteRate: 128,
     diskIOLatency: 8.5,
-    activeConnections: 45,
-    idleConnections: 23,
-    totalConnections: 68,
+    activeConnections: 43, // Matched image
     maxConnections: 100,
-    failedConnections: 12,
-    connectionWaitTime: 125,
-    uptime: 2592000,
     availability: 99.94,
     downtimeIncidents: 2,
     errorRate: 3.2,
-    failedQueries: 18,
     deadlockCount: 5,
     lockWaitTime: 234,
-    clusterHealth: 'Healthy',
-    criticalAlerts: 2,
-    warningAlerts: 8,
     indexHitRatio: 96.7,
     missingIndexes: 7,
     unusedIndexes: 12,
@@ -114,15 +105,13 @@ const PostgreSQLMonitor = () => {
         time: `${i}:00`,
         tps: Math.floor(Math.random() * 500) + 800,
         latency: Math.random() * 40 + 20,
-        connections: Math.floor(Math.random() * 40) + 20
       });
     }
     setTimeSeriesData(series);
 
-    // 2. Query Scatter (Frequency vs Duration vs Impact)
+    // 2. Query Scatter
     const queries = Array.from({ length: 40 }, (_, i) => ({
       id: i,
-      queryHash: `Q-${Math.floor(Math.random() * 10000)}`,
       duration: Math.random() * 800 + 10,
       frequency: Math.floor(Math.random() * 1000) + 10,
       impact: Math.floor(Math.random() * 100),
@@ -139,9 +128,6 @@ const PostgreSQLMonitor = () => {
           { name: 'order_items', size: 3200 },
           { name: 'logs_2024', size: 2100 },
           { name: 'users', size: 1500 },
-          { name: 'products', size: 900 },
-          { name: 'audit_trail', size: 800 },
-          { name: 'inventory', size: 500 },
         ]
       },
       {
@@ -166,10 +152,7 @@ const PostgreSQLMonitor = () => {
     // 5. Hourly Heatmap
     const heatmap = [];
     for(let i=0; i<24; i++) {
-        heatmap.push({
-            hour: i,
-            load: Math.floor(Math.random() * 100),
-        })
+        heatmap.push({ hour: i, load: Math.floor(Math.random() * 100) })
     }
     setHourlyHeatmap(heatmap);
 
@@ -195,19 +178,28 @@ const PostgreSQLMonitor = () => {
         ...prev,
         qps: Math.floor(Math.random() * 200) + 1800,
         tps: Math.floor(Math.random() * 100) + 800,
-        cpuUsage: Math.random() * 15 + 30,
-        activeConnections: Math.floor(Math.random() * 10) + 40
+        activeConnections: Math.floor(Math.random() * 5) + 40 // keep around 43 for demo
       }));
     }, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash) setActiveTab(hash);
-  }, []);
-
   // --- Helper Components ---
+
+  const FancyTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    return (
+      <div style={{ background: '#fff', border: '1px solid #ccc', padding: '10px', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+        <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>{label}</p>
+        {payload.map((entry, index) => (
+          <div key={index} style={{ color: entry.color }}>
+            {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}
+            {entry.unit}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const CustomizedTreemapContent = (props) => {
     const { depth, x, y, width, height, name } = props;
@@ -242,59 +234,40 @@ const PostgreSQLMonitor = () => {
     );
   };
 
-  const FancyTooltip = ({ active, payload, label }) => {
-    if (!active || !payload || !payload.length) return null;
-    return (
-      <div style={{ background: '#fff', border: '1px solid #ccc', padding: '10px', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-        <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>{label}</p>
-        {payload.map((entry, index) => (
-          <div key={index} style={{ color: entry.color }}>
-            {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}
-            {entry.unit}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   const TabGrid = ({ children }) => (
-    <div style={{ width: '100%', marginLeft: 0, marginRight: 'auto', display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', rowGap: 16 }}>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {children}
     </div>
   );
 
-  const sectionCard = (title, children, rightNode) => (
-    <div style={{ background: 'linear-gradient(135deg,#ffffff 0%,#f4f5ff 40%,#e5edf7 100%)', borderRadius: 18, border: '1px solid #d1d5db', padding: '14px 16px 18px', boxShadow: '0 12px 32px rgba(15,23,42,0.10)', display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{title}</h2>
-        {rightNode || null}
+  const sectionCard = (title, children) => (
+    <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, color: '#1e293b' }}>{title}</h2>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>{children}</div>
     </div>
   );
 
-  const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color }) => (
-    <div style={{ background: '#ffffff', borderRadius: 16, border: '1px solid #d1d5db', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 10, background: '#e5edf7', border: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon size={14} color={color || '#0f172a'} />
+  const MetricCard = ({ icon: Icon, title, value, unit, color }) => (
+    <div style={{ background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '20px', display: 'flex', alignItems: 'flex-start', gap: 16, boxShadow: '0 2px 4px -1px rgba(0,0,0,0.05)' }}>
+       <div style={{ padding: 10, borderRadius: 10, background: `${color}15` }}>
+          <Icon size={20} color={color} />
+       </div>
+       <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500, marginBottom: 4 }}>{title}</span>
+          <div style={{ display: 'flex', alignItems: 'baseline' }}>
+             <span style={{ fontSize: 24, fontWeight: 700, color: '#1e293b' }}>{value}</span>
+             {unit && <span style={{ marginLeft: 4, fontSize: 13, color: '#94a3b8' }}>{unit}</span>}
           </div>
-          <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 500 }}>{title}</span>
-        </div>
-      </div>
-      <div style={{ marginTop: 4 }}>
-        <span style={{ fontSize: 22, fontWeight: 600, color: '#0f172a' }}>{value}</span>
-        {unit && <span style={{ marginLeft: 4, fontSize: 12, color: '#6b7280' }}>{unit}</span>}
-      </div>
-      {subtitle && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{subtitle}</div>}
+       </div>
     </div>
   );
 
   const ProgressBar = ({ value, max, color }) => (
     <div style={{ width: '100%' }}>
-      <div style={{ width: '100%', backgroundColor: '#e5edf7', borderRadius: 999, height: 6, overflow: 'hidden', border: '1px solid #d1d5db' }}>
-        <div style={{ height: '100%', width: `${Math.min((value / max) * 100, 100)}%`, backgroundColor: color || PRIMARY_GREEN, borderRadius: 999, transition: 'width 0.4s ease' }} />
+      <div style={{ width: '100%', backgroundColor: '#f1f5f9', borderRadius: 999, height: 6, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${Math.min((value / max) * 100, 100)}%`, backgroundColor: color || PRIMARY_GREEN, borderRadius: 999 }} />
       </div>
     </div>
   );
@@ -303,19 +276,20 @@ const PostgreSQLMonitor = () => {
 
   const OverviewTab = () => (
     <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1.2fr)', gap: 16, height: 350 }}>
+      {/* Charts Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 20, height: 400 }}>
         {sectionCard(
           'Load vs Latency Correlation',
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={timeSeriesData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <ComposedChart data={timeSeriesData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-              <YAxis yAxisId="left" orientation="left" stroke={PRIMARY_BLUE} tick={{ fontSize: 11 }} />
-              <YAxis yAxisId="right" orientation="right" stroke={PRIMARY_ORANGE} tick={{ fontSize: 11 }} />
+              <YAxis yAxisId="left" orientation="left" stroke={PRIMARY_BLUE} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="right" orientation="right" stroke={PRIMARY_ORANGE} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<FancyTooltip />} />
-              <Legend />
-              <Bar yAxisId="left" dataKey="tps" name="TPS" fill={PRIMARY_BLUE} radius={[4, 4, 0, 0]} fillOpacity={0.8} />
-              <Line yAxisId="right" type="monotone" dataKey="latency" name="Latency (ms)" stroke={PRIMARY_ORANGE} strokeWidth={2} dot={false} />
+              <Legend iconType="plainline" />
+              <Bar yAxisId="left" dataKey="tps" name="TPS" fill={PRIMARY_BLUE} radius={[4, 4, 0, 0]} fillOpacity={0.9} barSize={20} />
+              <Line yAxisId="right" type="monotone" dataKey="latency" name="Latency (ms)" stroke={PRIMARY_ORANGE} strokeWidth={3} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         )}
@@ -323,18 +297,19 @@ const PostgreSQLMonitor = () => {
         {sectionCard(
           'System Health Radar',
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart outerRadius="70%" data={radarData}>
+            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
               <PolarGrid stroke="#e2e8f0" />
-              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#64748b' }} />
+              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#64748b' }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-              <Radar name="Current Health" dataKey="A" stroke={PRIMARY_GREEN} strokeWidth={2} fill={PRIMARY_GREEN} fillOpacity={0.4} />
+              <Radar name="Health" dataKey="A" stroke={PRIMARY_GREEN} strokeWidth={2} fill={PRIMARY_GREEN} fillOpacity={0.3} />
               <Tooltip />
             </RadarChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 16 }}>
+      {/* Metrics Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 20 }}>
         <MetricCard icon={Zap} title="QPS" value={metrics.qps} color={PRIMARY_BLUE} />
         <MetricCard icon={Clock} title="Avg Query" value={metrics.avgQueryTime.toFixed(1)} unit="ms" color="#eab308" />
         <MetricCard icon={Activity} title="Active Conn" value={metrics.activeConnections} color={PRIMARY_PURPLE} />
@@ -345,23 +320,20 @@ const PostgreSQLMonitor = () => {
 
   const PerformanceTab = () => (
     <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 20 }}>
         {sectionCard(
           'Query Quadrant (Freq vs Duration)',
           <div style={{ height: 350 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+              <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" dataKey="duration" name="Duration" unit="ms" label={{ value: 'Duration (ms)', position: 'bottom', offset: 0, fontSize: 10 }} />
-                <YAxis type="number" dataKey="frequency" name="Frequency" label={{ value: 'Freq', angle: -90, position: 'insideLeft', fontSize: 10 }} />
-                <ZAxis type="number" dataKey="impact" range={[50, 400]} name="Impact" />
+                <XAxis type="number" dataKey="duration" name="Duration" unit="ms" label={{ value: 'Duration', position: 'bottom', offset: 0, fontSize: 11 }} tick={{fontSize: 11}}/>
+                <YAxis type="number" dataKey="frequency" name="Frequency" label={{ value: 'Freq', angle: -90, position: 'insideLeft', fontSize: 11 }} tick={{fontSize: 11}}/>
+                <ZAxis type="number" dataKey="impact" range={[60, 400]} name="Impact" />
                 <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                <Scatter name="Read Queries" data={queryScatterData.filter(d => d.type === 'READ')} fill={PRIMARY_BLUE} />
-                <Scatter name="Write Queries" data={queryScatterData.filter(d => d.type === 'WRITE')} fill={PRIMARY_RED} shape="triangle" />
+                <Scatter name="Read" data={queryScatterData.filter(d => d.type === 'READ')} fill={PRIMARY_BLUE} />
+                <Scatter name="Write" data={queryScatterData.filter(d => d.type === 'WRITE')} fill={PRIMARY_RED} shape="triangle" />
                 <Legend />
-                {/* Reference lines to show danger zone */}
-                <line x1={400} y1={0} x2={400} y2={1000} stroke={PRIMARY_RED} strokeDasharray="4 4" strokeWidth={1} />
-                <line x1={0} y1={500} x2={1000} y2={500} stroke={PRIMARY_RED} strokeDasharray="4 4" strokeWidth={1} />
               </ScatterChart>
             </ResponsiveContainer>
           </div>
@@ -371,11 +343,11 @@ const PostgreSQLMonitor = () => {
           'Hourly Activity Heatmap',
           <div style={{ height: 350 }}>
              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={hourlyHeatmap} layout="vertical">
+                <BarChart data={hourlyHeatmap} layout="vertical" margin={{ left: 10 }}>
                    <XAxis type="number" hide />
-                   <YAxis dataKey="hour" type="category" width={30} tick={{fontSize: 10}} />
+                   <YAxis dataKey="hour" type="category" width={30} tick={{fontSize: 11}} />
                    <Tooltip />
-                   <Bar dataKey="load" name="Load Intensity" barSize={15}>
+                   <Bar dataKey="load" name="Load Intensity" barSize={12} radius={[0, 4, 4, 0]}>
                      {hourlyHeatmap.map((entry, index) => (
                          <Cell key={`cell-${index}`} fill={entry.load > 80 ? PRIMARY_RED : entry.load > 50 ? PRIMARY_ORANGE : PRIMARY_BLUE} />
                      ))}
@@ -386,7 +358,7 @@ const PostgreSQLMonitor = () => {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 20 }}>
         <MetricCard icon={AlertCircle} title="Slow Queries (>1s)" value={metrics.slowQueryCount} color={PRIMARY_RED} />
         <MetricCard icon={Activity} title="Transactions/sec" value={metrics.tps} color={PRIMARY_GREEN} />
       </div>
@@ -395,7 +367,7 @@ const PostgreSQLMonitor = () => {
 
   const ResourcesTab = () => (
     <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 20 }}>
         <MetricCard icon={Activity} title="CPU Usage" value={metrics.cpuUsage.toFixed(1)} unit="%" color={PRIMARY_ORANGE} />
         <MetricCard icon={Database} title="Memory Usage" value={metrics.memoryUsage.toFixed(1)} unit="%" color={PRIMARY_BLUE} />
         <MetricCard icon={HardDrive} title="Disk Used" value={metrics.diskUsed.toFixed(1)} unit="%" color={PRIMARY_GREEN} />
@@ -403,7 +375,7 @@ const PostgreSQLMonitor = () => {
 
       <div style={{ height: 400 }}>
         {sectionCard(
-          'Storage Topology (Treemap)',
+          'Storage Topology',
           <ResponsiveContainer width="100%" height="100%">
             <Treemap
               data={storageTreeData}
@@ -423,7 +395,7 @@ const PostgreSQLMonitor = () => {
 
   const ReliabilityTab = () => (
     <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 20 }}>
         <MetricCard icon={CheckCircle} title="Availability" value={metrics.availability} unit="%" color={PRIMARY_GREEN} />
         <MetricCard icon={XCircle} title="Downtime" value={metrics.downtimeIncidents} color={PRIMARY_RED} />
         <MetricCard icon={AlertCircle} title="Error Rate" value={metrics.errorRate.toFixed(1)} unit="/min" color={PRIMARY_ORANGE} />
@@ -433,16 +405,14 @@ const PostgreSQLMonitor = () => {
 
       {sectionCard(
         'Top Error Types',
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {topErrors.map((error, idx) => (
-            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13 }}>
+              <div style={{ width: 150, color: '#475569' }}>{error.type}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span>{error.type}</span>
-                  <span style={{ fontSize: 11, color: '#6b7280' }}>{error.percentage}%</span>
-                </div>
                 <ProgressBar value={error.percentage} max={100} color={PRIMARY_RED} />
               </div>
+              <div style={{ width: 40, textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>{error.percentage}%</div>
             </div>
           ))}
         </div>
@@ -452,25 +422,25 @@ const PostgreSQLMonitor = () => {
 
   const IndexesTab = () => (
     <TabGrid>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 20 }}>
         <MetricCard icon={TrendingUp} title="Index Hit Ratio" value={metrics.indexHitRatio.toFixed(1)} unit="%" color={PRIMARY_GREEN} />
         <MetricCard icon={AlertTriangle} title="Missing Indexes" value={metrics.missingIndexes} color={PRIMARY_ORANGE} />
         <MetricCard icon={AlertCircle} title="Unused Indexes" value={metrics.unusedIndexes} color={PRIMARY_RED} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 20 }}>
         {sectionCard(
           'Table Scan vs Index Usage',
-          <div style={{ height: 260 }}>
+          <div style={{ height: 300 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={[{ name: 'Stats', tableScanRate: metrics.tableScanRate, indexHitRatio: metrics.indexHitRatio }]}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="name" tick={{ fill: '#6b7280' }} />
-                <YAxis tick={{ fill: '#6b7280' }} />
+              <BarChart data={[{ name: 'Usage', tableScanRate: metrics.tableScanRate, indexHitRatio: metrics.indexHitRatio }]} layout="vertical" barSize={30}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" domain={[0, 100]} tick={{fontSize: 11}} />
+                <YAxis dataKey="name" type="category" hide />
                 <Tooltip content={<FancyTooltip />} />
                 <Legend />
-                <Bar dataKey="tableScanRate" name="Scan Rate" fill={PRIMARY_ORANGE} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="indexHitRatio" name="Hit Ratio" fill={PRIMARY_GREEN} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="tableScanRate" name="Scan Rate" fill={PRIMARY_ORANGE} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="indexHitRatio" name="Hit Ratio" fill={PRIMARY_GREEN} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -479,24 +449,21 @@ const PostgreSQLMonitor = () => {
     </TabGrid>
   );
 
-  const sidebarWidth = sidebarCollapsed ? 64 : 220;
+  const sidebarWidth = sidebarCollapsed ? 70 : 240;
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: 'linear-gradient(135deg, #e5edf7 0%, #f3f4ff 40%, #e0ecff 100%)', color: '#0f172a', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: '#f3f6fc', color: '#0f172a', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      
       {/* SIDEBAR */}
-      <aside style={{ width: sidebarWidth, borderRight: '1px solid #d1d5db', padding: '16px 12px', background: '#f3f4ff', display: 'flex', flexDirection: 'column', gap: 18, transition: 'width 0.25s ease', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 999, background: 'linear-gradient(135deg,#2563eb,#22c55e)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <aside style={{ width: sidebarWidth, borderRight: '1px solid #e2e8f0', background: '#ffffff', display: 'flex', flexDirection: 'column', transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)', flexShrink: 0, zIndex: 20 }}>
+        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding: sidebarCollapsed ? '0' : '0 24px', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${PRIMARY_BLUE}, ${PRIMARY_PURPLE})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Database size={18} color="#ffffff" />
           </div>
-          {!sidebarCollapsed && (
-            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>PostgreSQL Monitor</div>
-            </div>
-          )}
+          {!sidebarCollapsed && <span style={{ marginLeft: 12, fontWeight: 700, fontSize: 15, color: '#1e293b' }}>DB Monitor</span>}
         </div>
-        <div>
-          {!sidebarCollapsed && <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6, paddingLeft: 8 }}>Views</div>}
+        
+        <div style={{ padding: '24px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
           {[
             { id: 'overview', label: 'Overview', icon: Activity },
             { id: 'performance', label: 'Performance', icon: Zap },
@@ -504,52 +471,90 @@ const PostgreSQLMonitor = () => {
             { id: 'reliability', label: 'Reliability', icon: CheckCircle },
             { id: 'indexes', label: 'Indexes', icon: TrendingUp }
           ].map(item => {
-            const Icon = item.icon;
             const active = activeTab === item.id;
             return (
-              <button key={item.id} onClick={() => { setActiveTab(item.id); window.location.hash = item.id; }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 10, padding: '8px', marginBottom: 4, borderRadius: 6, border: 'none', cursor: 'pointer', background: active ? '#e5edf7' : 'transparent', color: active ? '#0f172a' : '#6b7280', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
-                <Icon size={18} color={active ? PRIMARY_BLUE : '#6b7280'} />
-                {!sidebarCollapsed && <span style={{ fontSize: 13, fontWeight: 500 }}>{item.label}</span>}
+              <button 
+                key={item.id} 
+                onClick={() => { setActiveTab(item.id); window.location.hash = item.id; }} 
+                style={{ 
+                  width: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 12, 
+                  padding: '12px', 
+                  borderRadius: 8, 
+                  border: 'none', 
+                  cursor: 'pointer', 
+                  background: active ? '#eff6ff' : 'transparent', 
+                  color: active ? PRIMARY_BLUE : '#64748b',
+                  transition: 'all 0.2s',
+                  justifyContent: sidebarCollapsed ? 'center' : 'flex-start'
+                }}
+              >
+                <item.icon size={20} strokeWidth={active ? 2.5 : 2} />
+                {!sidebarCollapsed && <span style={{ fontSize: 14, fontWeight: 500 }}>{item.label}</span>}
               </button>
             );
           })}
         </div>
-        <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <button onClick={() => setSidebarCollapsed(prev => !prev)} style={{ width: '100%', borderRadius: 6, border: 'none', background: 'transparent', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start', gap: 10, cursor: 'pointer', fontSize: 13, color: '#4b5563', fontWeight: 500 }}>
-            {sidebarCollapsed ? <ChevronRight size={18} /> : <><ChevronLeft size={18} /><span>Hide Views</span></>}
+
+        <div style={{ padding: 12, borderTop: '1px solid #f1f5f9' }}>
+          <button onClick={() => setSidebarCollapsed(prev => !prev)} style={{ width: '100%', borderRadius: 8, border: 'none', background: '#f8fafc', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
+            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
         </div>
       </aside>
 
-      {/* MAIN */}
+      {/* MAIN CONTENT */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-        <header style={{ borderBottom: '1px solid #d1d5db', padding: '12px 24px', display: 'flex', flexDirection: 'column', gap: 12, background: '#ffffff', zIndex: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <div style={{ textAlign: 'right', fontSize: 12, display: 'flex', gap: 16 }}>
-                <div>
-                  <div style={{ color: '#64748b', marginBottom: 2 }}>Active Connections</div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>
-                    <span style={{ color: PRIMARY_BLUE }}>{metrics.activeConnections}</span>
-                    <span style={{ color: '#cbd5e1', margin: '0 4px' }}>/</span>{metrics.maxConnections}
-                  </div>
+        
+        {/* HEADER */}
+        <header style={{ height: 64, borderBottom: '1px solid #e2e8f0', padding: '0 32px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', background: '#ffffff', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+             <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active Connections</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                   <span style={{ fontSize: 16, fontWeight: 700, color: PRIMARY_BLUE }}>{metrics.activeConnections}</span>
+                   <span style={{ fontSize: 14, color: '#cbd5e1' }}>/</span>
+                   <span style={{ fontSize: 14, fontWeight: 600, color: '#64748b' }}>{metrics.maxConnections}</span>
                 </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-            {recentAlerts.map((alert, idx) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 500, border: '1px solid transparent', background: alert.severity === 'critical' ? '#fee2e2' : alert.severity === 'warning' ? '#ffedd5' : '#f1f5f9', color: alert.severity === 'critical' ? '#991b1b' : alert.severity === 'warning' ? '#9a3412' : '#475569' }}>
-                <AlertTriangle size={12} /><span>{alert.message}</span>
-              </div>
-            ))}
+             </div>
           </div>
         </header>
 
-        <main style={{ padding: '24px', width: '100%', boxSizing: 'border-box', overflowY: 'auto', flex: 1 }}>
-          {activeTab === 'overview' && <OverviewTab />}
-          {activeTab === 'performance' && <PerformanceTab />}
-          {activeTab === 'resources' && <ResourcesTab />}
-          {activeTab === 'reliability' && <ReliabilityTab />}
-          {activeTab === 'indexes' && <IndexesTab />}
+        {/* SCROLLABLE DASHBOARD AREA */}
+        <main style={{ padding: '32px', overflowY: 'auto', flex: 1 }}>
+          <div style={{ maxWidth: 1600, margin: '0 auto' }}>
+            
+            {/* ALERTS SECTION (Moved out of header) */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+              {recentAlerts.map((alert, idx) => (
+                <div key={idx} style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 8, 
+                  padding: '8px 16px', 
+                  borderRadius: 20, 
+                  fontSize: 12, 
+                  fontWeight: 600, 
+                  background: alert.severity === 'critical' ? '#fef2f2' : alert.severity === 'warning' ? '#fff7ed' : '#f0f9ff', 
+                  color: alert.severity === 'critical' ? '#dc2626' : alert.severity === 'warning' ? '#c2410c' : '#0369a1',
+                  border: `1px solid ${alert.severity === 'critical' ? '#fecaca' : alert.severity === 'warning' ? '#fed7aa' : '#e0f2fe'}`
+                }}>
+                  <AlertTriangle size={14} />
+                  <span>{alert.message}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* TAB CONTENT */}
+            {activeTab === 'overview' && <OverviewTab />}
+            {activeTab === 'performance' && <PerformanceTab />}
+            {activeTab === 'resources' && <ResourcesTab />}
+            {activeTab === 'reliability' && <ReliabilityTab />}
+            {activeTab === 'indexes' && <IndexesTab />}
+            
+          </div>
         </main>
       </div>
     </div>
