@@ -35,20 +35,6 @@ import {
 const PostgreSQLMonitor = () => {
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Handle hash-based navigation
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '');
-      if (hash && ['overview', 'performance', 'resources', 'reliability', 'indexes'].includes(hash)) {
-        setActiveTab(hash);
-      }
-    };
-    
-    handleHashChange(); // Check initial hash
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2,
     slowQueryCount: 23,
@@ -180,6 +166,14 @@ const PostgreSQLMonitor = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // optional: initialize activeTab from URL hash
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) {
+      setActiveTab(hash);
+    }
+  }, []);
+
   const formatUptime = seconds => {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
@@ -291,7 +285,7 @@ const PostgreSQLMonitor = () => {
     </div>
   );
 
-  // ---- Tabs (same logic, light colors) ----
+  // ---- Tabs ----
 
   const OverviewTab = () => (
     <>
@@ -636,7 +630,6 @@ const PostgreSQLMonitor = () => {
             </div>
           )}
         </div>
-
         <div style={{ flex: 1 }}>
           {sectionCard(
             'Disk I/O Operations',
@@ -888,7 +881,6 @@ const PostgreSQLMonitor = () => {
             </div>
           )}
         </div>
-
         <div style={{ flex: 1 }}>
           {sectionCard(
             'Top Error Types',
@@ -965,7 +957,8 @@ const PostgreSQLMonitor = () => {
                 </div>
               ))}
               <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-                Total Disk Used: {(metrics.diskTotal - metrics.diskAvailable).toFixed(0)} GB
+                Total Disk Used:{' '}
+                {(metrics.diskTotal - metrics.diskAvailable).toFixed(0)} GB
               </div>
               <div style={{ fontSize: 12, color: '#6b7280' }}>
                 Free Space: {metrics.diskAvailable} GB
@@ -1089,7 +1082,7 @@ const PostgreSQLMonitor = () => {
     </>
   );
 
-  // -------- MAIN SHELL (light background) --------
+  // -------- MAIN SHELL --------
   return (
     <div
       style={{
