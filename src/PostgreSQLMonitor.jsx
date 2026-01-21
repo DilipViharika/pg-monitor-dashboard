@@ -1245,7 +1245,7 @@ const PostgreSQLMonitor = () => {
                   alignItems: 'center',
                   gap: 8,
                   padding: '6px 8px',
-                  marginBottom: 4,
+                  marginBottom: 2,
                   borderRadius: 8,
                   border: 'none',
                   cursor: 'pointer',
