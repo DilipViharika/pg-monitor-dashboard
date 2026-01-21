@@ -923,42 +923,39 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1.3 }}>
           {sectionCard(
             'Table Size Distribution',
-            <div style={{ height: 260 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'Orders', value: 300 },
-                      { name: 'Customers', value: 250 },
-                      { name: 'Products', value: 180 },
-                      { name: 'Transactions', value: 400 },
-                      { name: 'Others', value: 120 },
-                      { name: 'Free Space', value: metrics.diskAvailable }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                    label
-                  >
-                    <Cell fill="#2563eb" />
-                    <Cell fill="#22c55e" />
-                    <Cell fill="#f97316" />
-                    <Cell fill="#a855f7" />
-                    <Cell fill="#ef4444" />
-                    <Cell fill="#d1d5db" />
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: 12,
-                      border: '1px solid #d1d5db',
-                      fontSize: 11
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { name: 'Orders', size: 300, color: '#2563eb' },
+                { name: 'Customers', size: 250, color: '#22c55e' },
+                { name: 'Products', size: 180, color: '#f97316' },
+                { name: 'Transactions', size: 400, color: '#a855f7' },
+                { name: 'Others', size: 120, color: '#ef4444' }
+              ].map(table => (
+                <div key={table.name}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 12,
+                      marginBottom: 4
                     }}
+                  >
+                    <span>{table.name}</span>
+                    <span style={{ color: '#6b7280' }}>{table.size} GB</span>
+                  </div>
+                  <ProgressBar
+                    value={table.size}
+                    max={500} // Assuming a max size for visualization
+                    color={table.color}
                   />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+                </div>
+              ))}
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+                Total Disk Used: {(metrics.diskTotal - metrics.diskAvailable).toFixed(0)} GB
+              </div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>
+                Free Space: {metrics.diskAvailable} GB
+              </div>
             </div>
           )}
         </div>
