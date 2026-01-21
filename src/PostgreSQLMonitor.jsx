@@ -482,7 +482,7 @@ const PostgreSQLMonitor = () => {
         <div style={{ flex: 1.3 }}>
           {sectionCard(
             'Query Execution Time Distribution',
-            <div style={{ height: 280 }}>
+            <div style={{ height: 200 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={queryTimeDistribution}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
