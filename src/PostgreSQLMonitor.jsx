@@ -388,19 +388,36 @@ const PostgreSQLMonitor = () => {
                 { label: 'UPDATE', value: metrics.updatePerSec, color: '#f97316' },
                 { label: 'DELETE', value: metrics.deletePerSec, color: '#ef4444' }
               ].map(row => (
-                <div key={row.label}>
+                <div
+                  key={row.label}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8
+                  }}
+                >
                   <div
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
+                      width: 70,
                       fontSize: 12,
-                      marginBottom: 4
+                      color: '#374151'
                     }}
                   >
-                    <span>{row.label}</span>
-                    <span style={{ color: '#6b7280' }}>{row.value}/s</span>
+                    {row.label}
                   </div>
-                  <ProgressBar value={row.value} max={2000} color={row.color} />
+                  <div style={{ flex: 1 }}>
+                    <ProgressBar value={row.value} max={2000} color={row.color} />
+                  </div>
+                  <div
+                    style={{
+                      width: 50,
+                      textAlign: 'right',
+                      fontSize: 12,
+                      color: '#6b7280'
+                    }}
+                  >
+                    {row.value}/s
+                  </div>
                 </div>
               ))}
             </div>
