@@ -680,13 +680,13 @@ const PostgreSQLMonitor = () => {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>Read Rate</div>
-                  <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>Read Rate</div>
+                  <div style={{ fontSize: 18, fontWeight: 400 }}>
                     {metrics.diskIOReadRate}
                   </div>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>ops/sec</div>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>ops/sec</div>
                 </div>
-                <TrendingUp size={22} color="#2563eb" />
+                <TrendingUp size={18} color="#2563eb" />
               </div>
               <div
                 style={{
@@ -700,13 +700,13 @@ const PostgreSQLMonitor = () => {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>Write Rate</div>
-                  <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>Write Rate</div>
+                  <div style={{ fontSize: 18, fontWeight: 400 }}>
                     {metrics.diskIOWriteRate}
                   </div>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>ops/sec</div>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>ops/sec</div>
                 </div>
-                <TrendingDown size={22} color="#22c55e" />
+                <TrendingDown size={18} color="#22c55e" />
               </div>
               <div
                 style={{
@@ -720,13 +720,13 @@ const PostgreSQLMonitor = () => {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>I/O Latency</div>
-                  <div style={{ fontSize: 20, fontWeight: 600 }}>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>I/O Latency</div>
+                  <div style={{ fontSize: 18, fontWeight: 400 }}>
                     {metrics.diskIOLatency.toFixed(1)}
                   </div>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>ms avg</div>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>ms avg</div>
                 </div>
-                <Clock size={22} color="#f97316" />
+                <Clock size={18} color="#f97316" />
               </div>
             </div>
           )}
