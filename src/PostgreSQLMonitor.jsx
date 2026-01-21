@@ -1393,18 +1393,7 @@ const PostgreSQLMonitor = () => {
               <div style={{ display: 'flex', gap: 16 }}>
                 {/* Removed Cluster Health from here */}
 
-                <div>
-                  <div style={{ color: '#64748b', marginBottom: 2 }}>Availability</div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: PRIMARY_GREEN }}>
-                    {metrics.availability}%
-                  </div>
-                </div>
-                <div>
-                  <div style={{ color: '#64748b', marginBottom: 2 }}>Uptime</div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>
-                    {formatUptime(metrics.uptime)}
-                  </div>
-                </div>
+                
                 <div>
                   <div style={{ color: '#64748b', marginBottom: 2 }}>Active Connections</div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>
