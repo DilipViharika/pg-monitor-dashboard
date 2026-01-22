@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
   XCircle, Search, Cpu, Layers, Terminal, Power, RefreshCw, 
   ChevronLeft, ChevronRight, User as UserIcon, Globe, Network, 
-  LogOut, Shield, Key, Mail, Chrome, UserPlus, Settings, Eye, Edit3
+  LogOut, Shield, Key, Mail, Chrome, UserPlus, Settings, Eye, Edit3, Trash2
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -46,7 +46,7 @@ const mockErrorLogs = [
   { id: 105, type: 'Constraint Violation', timestamp: '11:20:12', user: 'api_write', db: 'production', query: 'INSERT INTO users (email) VALUES...', detail: 'Key (email)=(test@example.com) already exists' },
 ];
 
-// --- FIXED DATA: Added 'recommendation' fields so AI Agent works correctly ---
+// --- FIXED DATA ---
 const missingIndexesData = [
   { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%', recommendation: 'Create B-Tree index concurrently on customer_id. Estimated creation time: 4s.' },
   { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%', recommendation: 'BRIN index recommended for time-series data on created_at to save space.' },
@@ -201,12 +201,12 @@ const useMockAuth = () => {
     return new Promise((resolve) => {
       setTimeout(() => {
         const googleUser = { 
-            id: 999,
-            email: 'google_user@gmail.com', 
-            name: 'Google User', 
-            role: 'Viewer', 
-            accessLevel: 'read',
-            allowedScreens: ['overview', 'resources'] // Restricted view for external login
+             id: 999,
+             email: 'google_user@gmail.com', 
+             name: 'Google User', 
+             role: 'Viewer', 
+             accessLevel: 'read',
+             allowedScreens: ['overview', 'resources'] // Restricted view for external login
         };
         setCurrentUser(googleUser);
         localStorage.setItem('pg_monitor_user', JSON.stringify(googleUser));
@@ -226,7 +226,16 @@ const useMockAuth = () => {
       setAllUsers(prev => [...prev, { ...newUser, id: prev.length + 10 }]);
   };
 
-  return { currentUser, loading, error, login, googleLogin, logout, allUsers, createUser };
+  // User Deletion Function
+  const deleteUser = (userId) => {
+    if (userId === 1) {
+        alert("Cannot delete the root System Administrator.");
+        return;
+    }
+    setAllUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
+  return { currentUser, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser };
 };
 
 // --- GLOBAL SVG FILTERS ---
@@ -659,62 +668,99 @@ const ResourceGauge = ({ label, value, color }) => {
   );
 };
 
-// --- AI AGENT COMPONENT: DEBUGGED TO SHOW SUGGESTIONS ---
+// --- AI AGENT COMPONENT: FIXED ---
 const AIAgentView = ({ type, data }) => {
-  if (!data) return (
-    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
-      <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Terminal size={24} />
+    if (!data) return (
+      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
+        <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Terminal size={24} />
+        </div>
+        <p style={{ fontSize: 13 }}>Select an item to analyze.</p>
       </div>
-      <p style={{ fontSize: 13 }}>Select an item to analyze.</p>
-    </div>
-  );
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
-      <div style={{ background: 'rgba(168, 85, 247, 0.1)', border: `1px solid ${THEME.ai}40`, borderRadius: 12, padding: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <div style={{ width: 24, height: 24, background: THEME.ai, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px ${THEME.ai}60` }}>
-            <Zap size={14} color="white" fill="white" />
+    );
+  
+    // Helper to generate context-aware SQL for the "Details" pane
+    const renderSqlContext = () => {
+      if (type === 'api') {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {data.queries.map((q, i) => (
+              <div key={i} style={{ borderBottom: `1px solid ${THEME.grid}`, paddingBottom: 12, marginBottom: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: THEME.textMuted, fontSize: 11, marginBottom: 4 }}>
+                  <span>{q.calls} Executions</span>
+                  <span>{q.duration}ms</span>
+                </div>
+                <div style={{ color: '#fff' }}>{q.sql}</div>
+              </div>
+            ))}
           </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span>
+        );
+      }
+      
+      // Logic for Index Tab Categories
+      if (type === 'missing') {
+        return (
+          <>
+            <div style={{ color: THEME.textMuted, marginBottom: 8 }}>-- Suggested Fix: Create Index</div>
+            <div style={{ color: THEME.success }}>
+              CREATE INDEX CONCURRENTLY idx_{data.table}_{data.column} <br/>
+              ON {data.table} ({data.column});
+            </div>
+            <div style={{ color: THEME.textMuted, marginTop: 16 }}>-- Impact Analysis</div>
+            <div>Scans Reduced: {data.improvement}</div>
+            <div>Est. Storage: ~24MB</div>
+          </>
+        );
+      }
+  
+      if (type === 'unused') {
+        return (
+          <>
+            <div style={{ color: THEME.textMuted, marginBottom: 8 }}>-- Suggested Fix: Drop Unused Index</div>
+            <div style={{ color: THEME.danger }}>
+              DROP INDEX CONCURRENTLY {data.indexName};
+            </div>
+            <div style={{ color: THEME.textMuted, marginTop: 16 }}>-- Storage Reclaimed</div>
+            <div>Size: {data.size}</div>
+            <div>Last Access: {data.lastUsed}</div>
+          </>
+        );
+      }
+  
+      // Default for Hit Ratio or others (uses problem_query)
+      return <>{data.problem_query || "Query optimization suggested..."}</>;
+    };
+  
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
+        <div style={{ background: 'rgba(168, 85, 247, 0.1)', border: `1px solid ${THEME.ai}40`, borderRadius: 12, padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <div style={{ width: 24, height: 24, background: THEME.ai, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px ${THEME.ai}60` }}>
+              <Zap size={14} color="white" fill="white" />
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span>
+          </div>
+          <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>
+             {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
+          </p>
         </div>
-        <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>
-            {/* Logic fixed: checks for ai_insight (API) OR recommendation (Indexes) */}
-            {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
-        </p>
-      </div>
-
-      <div style={{ flex: 1, background: '#0f172a', borderRadius: 12, border: `1px solid ${THEME.grid}`, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: '#1e293b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${THEME.grid}` }}>
-          <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>DETAILS.sql</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></div>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }}></div>
+  
+        <div style={{ flex: 1, background: '#0f172a', borderRadius: 12, border: `1px solid ${THEME.grid}`, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: '#1e293b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${THEME.grid}` }}>
+            <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>CONTEXT.sql</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></div>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }}></div>
+            </div>
+          </div>
+          <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1, overflowY: 'auto' }}>
+             {renderSqlContext()}
           </div>
         </div>
-        <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1, overflowY: 'auto' }}>
-          {type === 'api' ? (
-             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {data.queries.map((q, i) => (
-                   <div key={i} style={{ borderBottom: `1px solid ${THEME.grid}`, paddingBottom: 12, marginBottom: 4 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: THEME.textMuted, fontSize: 11, marginBottom: 4 }}>
-                         <span>{q.calls} Executions</span>
-                         <span>{q.duration}ms</span>
-                      </div>
-                      <div style={{ color: '#fff' }}>{q.sql}</div>
-                   </div>
-                ))}
-             </div>
-          ) : (
-             <>{data.problem_query || "Query optimization suggested..."}</>
-          )}
-        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 const EmptyState = ({ icon: Icon, text }) => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: THEME.textMuted, gap: 16, opacity: 0.7 }}>
@@ -726,7 +772,7 @@ const EmptyState = ({ icon: Icon, text }) => (
 );
 
 // --- TAB COMPONENT: USER MANAGEMENT (ADMIN) ---
-const UserManagementTab = ({ users, onCreateUser }) => {
+const UserManagementTab = ({ users, onCreateUser, onDeleteUser }) => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -855,17 +901,41 @@ const UserManagementTab = ({ users, onCreateUser }) => {
                                     </span>
                                 </div>
                             </div>
-                            <div style={{ textAlign: 'right', maxWidth: 150 }}>
-                                <div style={{ fontSize: 10, color: THEME.textMuted, marginBottom: 4 }}>ACCESS</div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end' }}>
+                            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                                <div style={{ fontSize: 10, color: THEME.textMuted }}>ACCESS</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end', maxWidth: 100 }}>
                                     {u.allowedScreens.slice(0, 4).map(screen => (
                                         <div key={screen} style={{ width: 6, height: 6, borderRadius: '50%', background: THEME.secondary, title: screen }} />
                                     ))}
                                     {u.allowedScreens.length > 4 && <span style={{ fontSize: 8, color: THEME.textMuted }}>+{u.allowedScreens.length - 4}</span>}
                                 </div>
-                                <div style={{ fontSize: 10, color: THEME.textMuted, marginTop: 4 }}>
+                                <div style={{ fontSize: 10, color: THEME.textMuted }}>
                                     {u.allowedScreens.length} Screens
                                 </div>
+                                {/* Delete Button - Only show if not Admin */}
+                                {u.id !== 1 && (
+                                    <button 
+                                        onClick={() => {
+                                            if(window.confirm(`Delete user ${u.name}?`)) {
+                                                onDeleteUser(u.id);
+                                            }
+                                        }}
+                                        style={{ 
+                                            background: 'rgba(244, 63, 94, 0.1)', 
+                                            border: `1px solid ${THEME.danger}40`, 
+                                            borderRadius: 6, 
+                                            padding: 6, 
+                                            cursor: 'pointer',
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center',
+                                            color: THEME.danger
+                                        }}
+                                        title="Delete User"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -876,7 +946,7 @@ const UserManagementTab = ({ users, onCreateUser }) => {
 };
 
 // --- MAIN DASHBOARD COMPONENT ---
-const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) => {
+const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDeleteUser }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   // Tab-Specific States
@@ -1408,14 +1478,14 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) =>
     );
   };
 
-  // --- INDEXES TAB: DEBUGGED ---
+  // --- INDEXES TAB: FIXED ---
   const IndexesTab = () => {
     const renderIndexDetailList = () => {
         let data = [];
         if (indexViewMode === 'missing') data = missingIndexesData;
         else if (indexViewMode === 'unused') data = unusedIndexesData;
         else if (indexViewMode === 'hitRatio') data = lowHitRatioData;
-      
+       
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
             {data.map((item) => (
@@ -1648,11 +1718,11 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) =>
              <button 
                 onClick={onLogout}
                 style={{ 
-                    width: '100%',
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '24px', 
-                    background: 'transparent', border: 'none', 
-                    color: THEME.textMuted, cursor: 'pointer',
-                    justifyContent: isSidebarOpen ? 'flex-start' : 'center'
+                   width: '100%',
+                   display: 'flex', alignItems: 'center', gap: 12, padding: '24px', 
+                   background: 'transparent', border: 'none', 
+                   color: THEME.textMuted, cursor: 'pointer',
+                   justifyContent: isSidebarOpen ? 'flex-start' : 'center'
                 }}
              >
                 <LogOut size={18} />
@@ -1660,11 +1730,11 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) =>
              </button>
              {isSidebarOpen && (
                 <div style={{ padding: '0 24px 24px' }}>
-                    <div style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>Uptime: {formatUptime(metrics.uptime)}</div>
-                    <div style={{ fontSize: 10, color: THEME.textMuted, marginTop: 4 }}>User: {currentUser?.name}</div>
-                    <div style={{ fontSize: 10, color: currentUser?.accessLevel === 'write' ? THEME.success : THEME.warning }}>
-                        {currentUser?.accessLevel === 'write' ? '• Read & Write' : '• Read Only'}
-                    </div>
+                   <div style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>Uptime: {formatUptime(metrics.uptime)}</div>
+                   <div style={{ fontSize: 10, color: THEME.textMuted, marginTop: 4 }}>User: {currentUser?.name}</div>
+                   <div style={{ fontSize: 10, color: currentUser?.accessLevel === 'write' ? THEME.success : THEME.warning }}>
+                       {currentUser?.accessLevel === 'write' ? '• Read & Write' : '• Read Only'}
+                   </div>
                 </div>
              )}
           </div>
@@ -1700,7 +1770,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) =>
                {activeTab === 'reliability' && <ReliabilityTab />}
                {activeTab === 'indexes' && <IndexesTab />}
                {activeTab === 'api' && <ApiQueriesTab />}
-               {activeTab === 'admin' && <UserManagementTab users={allUsers} onCreateUser={onCreateUser} />}
+               {activeTab === 'admin' && <UserManagementTab users={allUsers} onCreateUser={onCreateUser} onDeleteUser={onDeleteUser} />}
             </div>
           </div>
         </main>
@@ -1711,7 +1781,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) =>
 
 // --- APP WRAPPER ---
 const App = () => {
-    const { currentUser, loading, error, login, googleLogin, logout, allUsers, createUser } = useMockAuth();
+    const { currentUser, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser } = useMockAuth();
 
     if (loading && !currentUser) {
         return (
@@ -1726,7 +1796,7 @@ const App = () => {
         return <LoginPage onLogin={login} onGoogleLogin={googleLogin} loading={loading} error={error} />;
     }
 
-    return <PostgreSQLMonitor currentUser={currentUser} onLogout={logout} allUsers={allUsers} onCreateUser={createUser} />;
+    return <PostgreSQLMonitor currentUser={currentUser} onLogout={logout} allUsers={allUsers} onCreateUser={createUser} onDeleteUser={deleteUser} />;
 };
 
 export default App;
