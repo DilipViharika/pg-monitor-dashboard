@@ -12,17 +12,17 @@ import {
   Legend, RadialBarChart, RadialBar, PolarAngleAxis
 } from 'recharts';
 
-// --- THEME CONSTANTS (Adaptive) ---
+// --- 1. THEME CONSTANTS (ADAPTIVE) ---
 const THEMES = {
-  PostgreSQL: { primary: '#0EA5E9', secondary: '#8B5CF6', bg: '#020617', glassBorder: 'rgba(56, 189, 248, 0.1)' }, // Blue/Purple
-  MySQL: { primary: '#F59E0B', secondary: '#0EA5E9', bg: '#0f172a', glassBorder: 'rgba(245, 158, 11, 0.1)' },      // Orange/Blue
-  SQLite: { primary: '#10B981', secondary: '#64748B', bg: '#052e16', glassBorder: 'rgba(16, 185, 129, 0.1)' },     // Green/Slate
-  Oracle: { primary: '#EF4444', secondary: '#F59E0B', bg: '#2b0a0a', glassBorder: 'rgba(239, 68, 68, 0.1)' },     // Red/Orange
-  SQLServer: { primary: '#A855F7', secondary: '#EC4899', bg: '#2e1065', glassBorder: 'rgba(168, 85, 247, 0.1)' },  // Purple/Pink
+  PostgreSQL: { primary: '#0EA5E9', secondary: '#8B5CF6', bg: '#020617', glassBorder: 'rgba(56, 189, 248, 0.1)' },
+  MySQL: { primary: '#F59E0B', secondary: '#0EA5E9', bg: '#0f172a', glassBorder: 'rgba(245, 158, 11, 0.1)' },
+  SQLite: { primary: '#10B981', secondary: '#64748B', bg: '#052e16', glassBorder: 'rgba(16, 185, 129, 0.1)' },
+  Oracle: { primary: '#EF4444', secondary: '#F59E0B', bg: '#2b0a0a', glassBorder: 'rgba(239, 68, 68, 0.1)' },
+  SQLServer: { primary: '#A855F7', secondary: '#EC4899', bg: '#2e1065', glassBorder: 'rgba(168, 85, 247, 0.1)' },
   Default: { primary: '#0EA5E9', secondary: '#8B5CF6', bg: '#020617', glassBorder: 'rgba(56, 189, 248, 0.1)' }
 };
 
-// --- MOCK DATA ---
+// --- 2. MOCK DATASETS ---
 const mockConnections = [
   { pid: 14023, user: 'postgres', db: 'production', app: 'pgAdmin 4', state: 'active', duration: '00:00:04', query: 'SELECT * FROM pg_stat_activity WHERE state = \'active\';', ip: '192.168.1.5' },
   { pid: 14099, user: 'app_user', db: 'production', app: 'NodeJS Backend', state: 'idle in transaction', duration: '00:15:23', query: 'UPDATE orders SET status = \'processing\' WHERE id = 4591;', ip: '10.0.0.12' },
@@ -57,7 +57,11 @@ const unusedIndexesData = [
   { id: 1, table: 'users', indexName: 'idx_users_old', size: '450MB', lastUsed: '2023-11-04' },
 ];
 
-// --- GLOBAL SVG FILTERS ---
+const lowHitRatioData = [
+  { id: 1, table: 'audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM logs WHERE msg LIKE '%error%'", recommendation: 'Leading wildcard forces scan. Use Full Text Search.' },
+];
+
+// --- 3. GRAPHICS & HELPERS ---
 const ChartDefs = ({ theme }) => (
   <svg style={{ height: 0, width: 0, position: 'absolute' }}>
     <defs>
@@ -81,8 +85,19 @@ const ChartDefs = ({ theme }) => (
   </svg>
 );
 
-// --- REUSABLE COMPONENTS ---
-const GlassCard = ({ children, title, rightNode, style, theme }) => (
+const detectDatabaseType = (connectionString) => {
+  if (!connectionString) return { type: 'PostgreSQL', theme: THEMES.PostgreSQL };
+  const uri = connectionString.toLowerCase().trim();
+  if (uri.startsWith('postgres')) return { type: 'PostgreSQL', theme: THEMES.PostgreSQL };
+  if (uri.startsWith('mysql')) return { type: 'MySQL', theme: THEMES.MySQL };
+  if (uri.startsWith('sqlite')) return { type: 'SQLite', theme: THEMES.SQLite };
+  if (uri.startsWith('oracle')) return { type: 'Oracle', theme: THEMES.Oracle };
+  if (uri.startsWith('mssql')) return { type: 'SQL Server', theme: THEMES.SQLServer };
+  return { type: 'Unknown', theme: THEMES.Default };
+};
+
+// --- 4. REUSABLE UI COMPONENTS ---
+const GlassCard = ({ children, title, rightNode, style, theme = THEMES.Default }) => (
   <div style={{
     background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(12px)', borderRadius: 16, 
     border: `1px solid ${theme.glassBorder}`, boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)', 
@@ -98,7 +113,7 @@ const GlassCard = ({ children, title, rightNode, style, theme }) => (
   </div>
 );
 
-const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color, onClick, active, sparkData, theme }) => (
+const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color, onClick, active, sparkData, theme = THEMES.Default }) => (
   <div
     onClick={onClick}
     style={{
@@ -158,7 +173,7 @@ const ResourceGauge = ({ label, value, color }) => (
   </div>
 );
 
-const AIAgentView = ({ type, data, theme }) => {
+const AIAgentView = ({ type, data }) => {
   if (!data) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
       <Terminal size={24} />
@@ -179,7 +194,7 @@ const AIAgentView = ({ type, data, theme }) => {
       </div>
       <div style={{ flex: 1, background: '#0f172a', borderRadius: 12, border: '1px solid #1e293b', padding: 16, overflow: 'hidden' }}>
          <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'monospace', marginBottom: 10 }}>DETAILS / SQL</div>
-         <div style={{ color: '#a5b4fc', fontFamily: 'monospace', fontSize: 13, lineHeight: 1.6 }}>
+         <div style={{ color: '#a5b4fc', fontFamily: 'monospace', fontSize: 13, lineHeight: 1.6, overflowY: 'auto', maxHeight: '100%' }}>
             {type === 'api' ? data.queries.map((q, i) => <div key={i} style={{ marginBottom: 10 }}>{q.sql}</div>) : (data.problem_query || "Query plan unavailable.")}
          </div>
       </div>
@@ -187,19 +202,16 @@ const AIAgentView = ({ type, data, theme }) => {
   );
 };
 
-// --- LOGIC: DETECT DATABASE ---
-const detectDatabaseType = (connectionString) => {
-  if (!connectionString) return { type: 'PostgreSQL', theme: THEMES.PostgreSQL };
-  const uri = connectionString.toLowerCase().trim();
-  if (uri.startsWith('postgres')) return { type: 'PostgreSQL', theme: THEMES.PostgreSQL };
-  if (uri.startsWith('mysql')) return { type: 'MySQL', theme: THEMES.MySQL };
-  if (uri.startsWith('sqlite')) return { type: 'SQLite', theme: THEMES.SQLite };
-  if (uri.startsWith('oracle')) return { type: 'Oracle', theme: THEMES.Oracle };
-  if (uri.startsWith('mssql')) return { type: 'SQL Server', theme: THEMES.SQLServer };
-  return { type: 'Unknown', theme: THEMES.Default };
-};
+const EmptyState = ({ icon: Icon, text }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94A3B8', gap: 16, opacity: 0.7 }}>
+    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={32} />
+    </div>
+    <div>{text}</div>
+  </div>
+);
 
-// --- MAIN DASHBOARD ---
+// --- 5. MAIN COMPONENT ---
 const UniversalDBMonitor = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -217,7 +229,7 @@ const UniversalDBMonitor = () => {
   const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
   const [selectedApiItem, setSelectedApiItem] = useState(null);
 
-  // --- DATA STATES (Must be defined here to prevent "Blank Page") ---
+  // --- FULL DATA STATE (Restored to prevent blank page) ---
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
     selectPerSec: 1245, insertPerSec: 342, updatePerSec: 198, deletePerSec: 62,
@@ -239,7 +251,7 @@ const UniversalDBMonitor = () => {
   const [sparklineData, setSparklineData] = useState([]);
   const [recentAlerts, setRecentAlerts] = useState([]);
 
-  // Data Init
+  // Initialization
   useEffect(() => {
     setLast30Days(Array.from({ length: 30 }, (_, i) => ({
       date: new Date(new Date().setDate(new Date().getDate() - (29 - i))).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
@@ -281,11 +293,14 @@ const UniversalDBMonitor = () => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
         ...prev,
-        cpuUsage: Math.floor(Math.random() * 40) + 20,
-        qps: Math.floor(Math.random() * 500) + 1000
+        qps: Math.floor(Math.random() * 600) + 1400,
+        tps: Math.floor(Math.random() * 300) + 700,
+        avgQueryTime: 30 + Math.random() * 40,
+        cpuUsage: 30 + Math.random() * 30,
+        diskIOReadRate: Math.floor(Math.random() * 100) + 200,
       }));
       setSparklineData(prev => [...prev.slice(1), { value: Math.random() * 100 }]);
-    }, 5000);
+    }, 5000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -300,48 +315,104 @@ const UniversalDBMonitor = () => {
 
   // --- TABS ---
   const OverviewTab = () => (
-    <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr', gap: 24 }}>
-      <GlassCard title="Cluster Activity" theme={currentTheme}>
-        <ResponsiveContainer width="100%" height={320}>
-          <AreaChart data={last30Days} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-            <ChartDefs theme={currentTheme} />
-            <CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} dy={10} />
-            <YAxis tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} />
-            <Tooltip content={<CustomTooltip />} />
-            <Area type="monotone" dataKey="qps" stroke={currentTheme.primary} strokeWidth={3} fill="url(#primaryGradient)" filter="url(#neonGlow)" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </GlassCard>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <MetricCard icon={Zap} title="QPS" value={metrics.qps} color={currentTheme.primary} theme={currentTheme} sparkData={sparklineData} />
-        <MetricCard icon={Cpu} title="CPU" value={metrics.cpuUsage} unit="%" color={currentTheme.secondary} theme={currentTheme} />
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr', gap: 24, marginBottom: 24 }}>
+        <GlassCard title="Cluster Activity (30 Days)" theme={currentTheme}>
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={last30Days} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+              <ChartDefs theme={currentTheme} />
+              <CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} dy={10} />
+              <YAxis tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="qps" stroke={currentTheme.primary} strokeWidth={3} fill="url(#primaryGradient)" filter="url(#neonGlow)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </GlassCard>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <MetricCard icon={Clock} title="Avg Query" value={metrics.avgQueryTime.toFixed(1)} unit="ms" color={THEME.warning} sparkData={sparklineData} theme={currentTheme} />
+          <MetricCard icon={Zap} title="Current QPS" value={metrics.qps} color={currentTheme.primary} theme={currentTheme} />
+          <MetricCard icon={Cpu} title="CPU Load" value={metrics.cpuUsage.toFixed(1)} unit="%" color={THEME.danger} theme={currentTheme} />
+        </div>
       </div>
-    </div>
+    </>
   );
 
   const ResourcesTab = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
-        <GlassCard title="CPU" theme={currentTheme}><ResourceGauge label="Load" value={metrics.cpuUsage} color={currentTheme.primary} /></GlassCard>
-        <GlassCard title="Memory" theme={currentTheme}><ResourceGauge label="RAM" value={metrics.memoryUsage} color={currentTheme.secondary} /></GlassCard>
-        <GlassCard title="Disk" theme={currentTheme}><ResourceGauge label="HDD" value={metrics.diskUsed} color={THEME.warning} /></GlassCard>
+        <GlassCard title="CPU Usage" theme={currentTheme}><ResourceGauge label="Core Load" value={metrics.cpuUsage.toFixed(1)} color={currentTheme.primary} /></GlassCard>
+        <GlassCard title="Memory Usage" theme={currentTheme}><ResourceGauge label="RAM Used" value={metrics.memoryUsage.toFixed(1)} color={currentTheme.secondary} /></GlassCard>
+        <GlassCard title="Disk Capacity" theme={currentTheme}><ResourceGauge label="Disk Used" value={metrics.diskUsed.toFixed(1)} color={THEME.warning} /></GlassCard>
+    </div>
+  );
+
+  const PerformanceTab = () => (
+    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24 }}>
+        <GlassCard title="Query Time Distribution" theme={currentTheme}>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={queryTimeDistribution}><ChartDefs theme={currentTheme} /><CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} /><XAxis dataKey="range" /><YAxis /><Tooltip content={<CustomTooltip />} /><Bar dataKey="count" fill="url(#barGradient)" filter="url(#neonGlow)" /></BarChart>
+          </ResponsiveContainer>
+        </GlassCard>
     </div>
   );
 
   const ReliabilityTab = () => (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
-        <GlassCard title="Connections" theme={currentTheme}>
-            <div onClick={() => setReliabilityViewMode('active')} style={{ cursor: 'pointer', marginBottom: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', marginBottom: 8 }}><span>Active</span><span>{metrics.activeConnections}</span></div>
-                <NeonProgressBar value={metrics.activeConnections} max={100} color={currentTheme.primary} />
-            </div>
-            {reliabilityViewMode === 'active' && (
-                <div style={{ marginTop: 20, height: 200, overflowY: 'auto' }}>
-                    {mockConnections.map(c => <div key={c.pid} style={{ padding: 10, borderBottom: '1px solid #333', color: '#ccc', fontSize: 12 }}>{c.pid} - {c.app} ({c.state})</div>)}
+    !reliabilityViewMode ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
+            <GlassCard title="Connections" theme={currentTheme}>
+                <div onClick={() => setReliabilityViewMode('active')} style={{ cursor: 'pointer', marginBottom: 24 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', marginBottom: 8 }}><span>Active</span><span>{metrics.activeConnections}</span></div>
+                    <NeonProgressBar value={metrics.activeConnections} max={metrics.maxConnections} color={currentTheme.primary} />
                 </div>
-            )}
-        </GlassCard>
-    </div>
+                <div onClick={() => setReliabilityViewMode('idle')} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', marginBottom: 8 }}><span>Idle</span><span>{metrics.idleConnections}</span></div>
+                    <NeonProgressBar value={metrics.idleConnections} max={metrics.maxConnections} color={THEME.textMuted} />
+                </div>
+            </GlassCard>
+            <GlassCard title="Errors" theme={currentTheme}>
+                {topErrors.map((err, i) => (
+                    <div key={i} onClick={() => setReliabilityViewMode('errors')} style={{ cursor: 'pointer', marginBottom: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', fontSize: 12, marginBottom: 4 }}><span>{err.type}</span><span>{err.percentage}%</span></div>
+                        <NeonProgressBar value={err.percentage} max={100} color={THEME.danger} />
+                    </div>
+                ))}
+            </GlassCard>
+        </div>
+    ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            <GlassCard title="Details List" theme={currentTheme} rightNode={<button onClick={() => setReliabilityViewMode(null)} style={{ background: 'transparent', border: 'none', color: '#ccc', cursor: 'pointer' }}>Back</button>}>
+                {(reliabilityViewMode === 'active' ? mockConnections : reliabilityViewMode === 'errors' ? mockErrorLogs : mockConnections).map((item, i) => (
+                    <div key={i} style={{ padding: 12, borderBottom: '1px solid #333', color: '#ccc', cursor: 'pointer' }} onClick={() => setSelectedReliabilityItem(item)}>
+                        {item.pid || item.type}
+                    </div>
+                ))}
+            </GlassCard>
+            <GlassCard title="Inspector" theme={currentTheme}>
+                {selectedReliabilityItem ? <div style={{ color: '#fff' }}>{JSON.stringify(selectedReliabilityItem, null, 2)}</div> : <EmptyState icon={Search} text="Select Item" />}
+            </GlassCard>
+        </div>
+    )
+  );
+
+  const IndexesTab = () => (
+    !indexViewMode ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+            <MetricCard icon={TrendingUp} title="Hit Ratio" value={metrics.indexHitRatio} unit="%" color={currentTheme.primary} theme={currentTheme} onClick={() => setIndexViewMode('hitRatio')} />
+            <MetricCard icon={AlertTriangle} title="Missing" value={metrics.missingIndexes} color={THEME.warning} theme={currentTheme} onClick={() => setIndexViewMode('missing')} />
+            <MetricCard icon={Layers} title="Unused" value={metrics.unusedIndexes} color={THEME.danger} theme={currentTheme} onClick={() => setIndexViewMode('unused')} />
+        </div>
+    ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            <GlassCard title="List" theme={currentTheme} rightNode={<button onClick={() => setIndexViewMode(null)} style={{ background: 'transparent', border: 'none', color: '#ccc', cursor: 'pointer' }}>Back</button>}>
+                {(indexViewMode === 'hitRatio' ? lowHitRatioData : indexViewMode === 'missing' ? missingIndexesData : unusedIndexesData).map((item, i) => (
+                    <div key={i} onClick={() => setSelectedIndexItem(item)} style={{ padding: 12, borderBottom: '1px solid #333', color: '#ccc', cursor: 'pointer' }}>{item.table}</div>
+                ))}
+            </GlassCard>
+            <GlassCard title="AI Agent" theme={currentTheme}>
+                <AIAgentView type={indexViewMode} data={selectedIndexItem} />
+            </GlassCard>
+        </div>
+    )
   );
 
   const ApiQueriesTab = () => (
@@ -381,7 +452,7 @@ const UniversalDBMonitor = () => {
                 <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer' }}><ChevronLeft size={16} /></button>
             </div>
             <div style={{ flex: 1, padding: 10 }}>
-                {[{ id: 'overview', icon: Activity, label: 'Overview' }, { id: 'resources', icon: HardDrive, label: 'Resources' }, { id: 'reliability', icon: CheckCircle, label: 'Reliability' }, { id: 'api', icon: Network, label: 'API Tracing' }].map(item => (
+                {[{ id: 'overview', icon: Activity, label: 'Overview' }, { id: 'performance', icon: Zap, label: 'Performance' }, { id: 'resources', icon: HardDrive, label: 'Resources' }, { id: 'reliability', icon: CheckCircle, label: 'Reliability' }, { id: 'indexes', icon: Layers, label: 'Indexes' }, { id: 'api', icon: Network, label: 'API Tracing' }].map(item => (
                     <div key={item.id} onClick={() => setActiveTab(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, cursor: 'pointer', color: activeTab === item.id ? currentTheme.primary : '#ccc', background: activeTab === item.id ? 'rgba(255,255,255,0.05)' : 'transparent', borderRadius: 8, marginBottom: 4, justifyContent: isSidebarOpen ? 'flex-start' : 'center' }}>
                         <item.icon size={20} />
                         {isSidebarOpen && <span>{item.label}</span>}
@@ -399,8 +470,10 @@ const UniversalDBMonitor = () => {
             <h1 style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 30 }}>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Dashboard</h1>
             <ChartDefs theme={currentTheme} />
             {activeTab === 'overview' && <OverviewTab />}
+            {activeTab === 'performance' && <PerformanceTab />}
             {activeTab === 'resources' && <ResourcesTab />}
             {activeTab === 'reliability' && <ReliabilityTab />}
+            {activeTab === 'indexes' && <IndexesTab />}
             {activeTab === 'api' && <ApiQueriesTab />}
         </main>
     </div>
