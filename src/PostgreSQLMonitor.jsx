@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
   XCircle, Search, Cpu, Layers, Terminal, PlusCircle, Trash2,
   Power, RefreshCw, ChevronLeft, ChevronRight, User as UserIcon, Globe,
-  Menu, Code, FileText, Network, ArrowRight, Settings, Plug, Copy
+  Menu, Code, FileText, Network, ArrowRight, Settings, Plug, LogIn, Shield
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -12,7 +12,7 @@ import {
   Legend, RadialBarChart, RadialBar, PolarAngleAxis
 } from 'recharts';
 
-// --- THEME CONSTANTS (Adaptive) ---
+// --- THEME CONSTANTS ---
 const THEMES = {
   PostgreSQL: { primary: '#0EA5E9', secondary: '#8B5CF6', bg: '#020617', glassBorder: 'rgba(56, 189, 248, 0.1)' },
   MySQL: { primary: '#F59E0B', secondary: '#0EA5E9', bg: '#0f172a', glassBorder: 'rgba(245, 158, 11, 0.1)' },
@@ -22,46 +22,7 @@ const THEMES = {
   Default: { primary: '#0EA5E9', secondary: '#8B5CF6', bg: '#020617', glassBorder: 'rgba(56, 189, 248, 0.1)' }
 };
 
-// --- MOCK DATA ---
-const mockConnections = [
-  { pid: 14023, user: 'postgres', db: 'production', app: 'pgAdmin 4', state: 'active', duration: '00:00:04', query: 'SELECT * FROM pg_stat_activity WHERE state = \'active\';', ip: '192.168.1.5' },
-  { pid: 14099, user: 'app_user', db: 'production', app: 'NodeJS Backend', state: 'idle in transaction', duration: '00:15:23', query: 'UPDATE orders SET status = \'processing\' WHERE id = 4591;', ip: '10.0.0.12' },
-  { pid: 15102, user: 'analytics', db: 'warehouse', app: 'Metabase', state: 'active', duration: '00:42:10', query: 'SELECT region, SUM(amount) FROM sales GROUP BY region ORDER BY 2 DESC;', ip: '10.0.0.8' },
-  { pid: 15333, user: 'postgres', db: 'postgres', app: 'psql', state: 'idle', duration: '01:20:00', query: '-- idle connection', ip: 'local' },
-];
-
-const mockErrorLogs = [
-  { id: 101, type: 'Connection Timeout', timestamp: '10:42:15', user: 'app_svc', db: 'production', query: 'SELECT * FROM large_table...', detail: 'Client closed connection' },
-  { id: 102, type: 'Deadlock Detected', timestamp: '10:45:22', user: 'worker_01', db: 'warehouse', query: 'UPDATE inventory SET stock...', detail: 'Process 14022 waits for ShareLock' },
-];
-
-const apiQueryData = [
-  { 
-    id: 'api_1', method: 'GET', endpoint: '/api/v1/dashboard', avg_duration: 320, calls_per_min: 850, db_time_pct: 85,
-    queries: [{ sql: 'SELECT count(*) FROM orders', calls: 1, duration: 120 }, { sql: 'SELECT sum(total) FROM payments', calls: 1, duration: 145 }],
-    ai_insight: 'Heavy aggregation on payments table. Consider creating a materialized view.'
-  },
-  { 
-    id: 'api_2', method: 'POST', endpoint: '/api/v1/orders', avg_duration: 180, calls_per_min: 120, db_time_pct: 60,
-    queries: [{ sql: 'BEGIN TRANSACTION', calls: 1, duration: 2 }, { sql: 'SELECT stock FROM products FOR UPDATE', calls: 5, duration: 45 }],
-    ai_insight: 'Detected N+1 Query issue. The product stock check runs 5 times. Batch this.'
-  }
-];
-
-const missingIndexesData = [
-  { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%' },
-  { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%' },
-];
-
-const unusedIndexesData = [
-  { id: 1, table: 'users', indexName: 'idx_users_old', size: '450MB', lastUsed: '2023-11-04' },
-];
-
-const lowHitRatioData = [
-  { id: 1, table: 'audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM logs WHERE msg LIKE '%error%'", recommendation: 'Leading wildcard forces scan. Use Full Text Search.' },
-];
-
-// --- GRAPHICS & HELPERS ---
+// --- GLOBAL HELPERS ---
 const ChartDefs = ({ theme }) => (
   <svg style={{ height: 0, width: 0, position: 'absolute' }}>
     <defs>
@@ -123,7 +84,8 @@ const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color, onClick, 
       borderRadius: 12,
       border: active ? `1px solid ${color}` : `1px solid ${theme.glassBorder}`,
       padding: '20px', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12,
-      cursor: onClick ? 'pointer' : 'default', transition: 'all 0.3s', transform: active ? 'translateY(-2px)' : 'none', boxShadow: active ? `0 10px 25px -5px ${color}30` : 'none'
+      cursor: onClick ? 'pointer' : 'default', transition: 'all 0.3s', transform: active ? 'translateY(-2px)' : 'none', 
+      boxShadow: active ? `0 10px 25px -5px ${color}30` : 'none'
     }}
   >
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -211,15 +173,80 @@ const EmptyState = ({ icon: Icon, text }) => (
   </div>
 );
 
-// --- MAIN COMPONENT ---
+// --- 3. LOGIN SCREEN COMPONENT ---
+const LoginScreen = ({ onLogin }) => {
+  const [userId, setUserId] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (userId && password) {
+      onLogin(userId);
+    }
+  };
+
+  return (
+    <div style={{ height: '100vh', width: '100vw', background: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F8FAFC' }}>
+      <div style={{ width: 400, padding: 40, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(20px)', borderRadius: 24, border: '1px solid rgba(56, 189, 248, 0.2)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ width: 64, height: 64, background: 'linear-gradient(135deg, #0EA5E9, #8B5CF6)', borderRadius: 16, margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 30px rgba(14, 165, 233, 0.3)' }}>
+            <Database size={32} color="white" />
+          </div>
+          <h2 style={{ fontSize: 24, fontWeight: 700 }}>DB Monitor</h2>
+          <p style={{ color: '#94A3B8', fontSize: 14 }}>Enter credentials to access demo</p>
+        </div>
+        
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#94A3B8', marginBottom: 8, display: 'block' }}>USER ID</label>
+            <div style={{ position: 'relative' }}>
+              <UserIcon size={18} style={{ position: 'absolute', left: 12, top: 12, color: '#64748B' }} />
+              <input 
+                type="text" value={userId} onChange={(e) => setUserId(e.target.value)} required
+                style={{ width: '100%', padding: '12px 12px 12px 40px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: 'white', outline: 'none' }}
+                placeholder="admin"
+              />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#94A3B8', marginBottom: 8, display: 'block' }}>PASSWORD</label>
+            <div style={{ position: 'relative' }}>
+              <Lock size={18} style={{ position: 'absolute', left: 12, top: 12, color: '#64748B' }} />
+              <input 
+                type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+                style={{ width: '100%', padding: '12px 12px 12px 40px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: 'white', outline: 'none' }}
+                placeholder="••••••"
+              />
+            </div>
+          </div>
+          
+          <button type="submit" style={{ marginTop: 16, padding: '14px', background: '#0EA5E9', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s' }}>
+            <LogIn size={18} /> Access Dashboard
+          </button>
+        </form>
+        <div style={{ marginTop: 24, textAlign: 'center', fontSize: 12, color: '#64748B' }}>
+          Secure Connection • 256-bit Encryption
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- 4. MAIN DASHBOARD ---
 const UniversalDBMonitor = () => {
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState('');
+  
+  // Dashboard States
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [connectionString, setConnectionString] = useState('postgresql://scott:tiger@localhost:5432/prod_db');
   
-  // Theme & DB State
+  // Adaptive State
   const [dbType, setDbType] = useState('PostgreSQL');
+  const [isDemoMode, setIsDemoMode] = useState(true); // Track if using demo data
   const [currentTheme, setCurrentTheme] = useState(THEMES.PostgreSQL);
 
   // Drill Down States
@@ -229,7 +256,18 @@ const UniversalDBMonitor = () => {
   const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
   const [selectedApiItem, setSelectedApiItem] = useState(null);
 
-  // --- DATA STATES (Defined to prevent blank page) ---
+  // --- MOCK DATA ---
+  // (Defined here so they are available to the component scope)
+  const mockConnections = [
+    { pid: 14023, user: 'postgres', db: 'production', app: 'pgAdmin 4', state: 'active', duration: '00:00:04', query: 'SELECT * FROM pg_stat_activity', ip: '192.168.1.5' },
+    { pid: 14099, user: 'app_user', db: 'production', app: 'NodeJS', state: 'idle', duration: '00:15:23', query: '-- idle', ip: '10.0.0.12' },
+  ];
+  const mockErrorLogs = [{ id: 101, type: 'Timeout', timestamp: '10:42', user: 'svc', detail: 'Client closed connection' }];
+  const apiQueryData = [{ id: 'api_1', method: 'GET', endpoint: '/stats', avg_duration: 320, calls_per_min: 850, db_time_pct: 85, queries: [{ sql: 'SELECT count(*)', calls: 1, duration: 120 }], ai_insight: 'Heavy aggregation.' }];
+  const missingIndexesData = [{ id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%' }];
+  const unusedIndexesData = [{ id: 1, table: 'users', indexName: 'idx_old', size: '450MB', lastUsed: '2023-11-04' }];
+  const lowHitRatioData = [{ id: 1, table: 'logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM logs WHERE msg LIKE '%error%'", recommendation: 'Use Full Text Search.' }];
+
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
     selectPerSec: 1245, insertPerSec: 342, updatePerSec: 198, deletePerSec: 62,
@@ -276,8 +314,6 @@ const UniversalDBMonitor = () => {
       { type: 'Connection Timeout', count: 145, percentage: 38 },
       { type: 'Deadlock Detected', count: 89, percentage: 23 },
       { type: 'Query Timeout', count: 67, percentage: 17 },
-      { type: 'Lock Wait Timeout', count: 45, percentage: 12 },
-      { type: 'Constraint Violation', count: 38, percentage: 10 }
     ]);
 
     setRecentAlerts([
@@ -304,86 +340,43 @@ const UniversalDBMonitor = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+  };
+
   const handleConnect = () => {
     const { type, theme } = detectDatabaseType(connectionString);
     setDbType(type);
     setCurrentTheme(theme);
+    setIsDemoMode(false); // Switch to Live Mode
     setShowConnectModal(false);
+    // Reset Data for "Live" look
+    setMetrics(prev => ({ ...prev, activeConnections: 120, qps: 4500 })); 
   };
 
   const formatUptime = seconds => `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 
-  // --- TABS ---
+  // --- TAB RENDERERS ---
   const OverviewTab = () => (
-    <>
-      <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr', gap: 24, marginBottom: 24 }}>
-        <GlassCard title="Cluster Activity (30 Days)" theme={currentTheme}>
-          <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={last30Days} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-              <ChartDefs theme={currentTheme} />
-              <CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} dy={10} />
-              <YAxis tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ paddingTop: 10 }} />
-              <Area type="monotone" dataKey="qps" stroke={currentTheme.primary} strokeWidth={3} fill="url(#primaryGradient)" filter="url(#neonGlow)" />
-              <Area type="monotone" dataKey="tps" stroke={THEME.success} strokeWidth={3} fill="url(#successGradient)" name="TPS" filter="url(#neonGlow)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </GlassCard>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <MetricCard icon={Clock} title="Avg Query" value={metrics.avgQueryTime.toFixed(1)} unit="ms" color={THEME.warning} sparkData={sparklineData} theme={currentTheme} />
-          <MetricCard icon={Zap} title="Current QPS" value={metrics.qps} color={currentTheme.primary} theme={currentTheme} />
-          <MetricCard icon={Cpu} title="CPU Load" value={metrics.cpuUsage.toFixed(1)} unit="%" color={THEME.danger} theme={currentTheme} />
-        </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr', gap: 24 }}>
+      <GlassCard title="Cluster Activity" theme={currentTheme}>
+        <ResponsiveContainer width="100%" height={320}>
+          <AreaChart data={last30Days} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+            <ChartDefs theme={currentTheme} />
+            <CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} dy={10} />
+            <YAxis tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} />
+            <Tooltip content={<CustomTooltip />} />
+            <Area type="monotone" dataKey="qps" stroke={currentTheme.primary} strokeWidth={3} fill="url(#primaryGradient)" filter="url(#neonGlow)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </GlassCard>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <MetricCard icon={Clock} title="Avg Query" value={metrics.avgQueryTime.toFixed(1)} unit="ms" color={THEME.warning} sparkData={sparklineData} theme={currentTheme} />
+        <MetricCard icon={Zap} title="Current QPS" value={metrics.qps} color={currentTheme.primary} theme={currentTheme} />
+        <MetricCard icon={Cpu} title="CPU Load" value={metrics.cpuUsage.toFixed(1)} unit="%" color={THEME.danger} theme={currentTheme} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
-        <GlassCard title="Operations Breakdown">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {[{ label: 'SELECT', value: metrics.selectPerSec, color: THEME.primary }, { label: 'INSERT', value: metrics.insertPerSec, color: THEME.success }, { label: 'UPDATE', value: metrics.updatePerSec, color: THEME.warning }, { label: 'DELETE', value: metrics.deletePerSec, color: THEME.danger }].map((row) => (
-              <div key={row.label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8, color: THEME.textMain }}>
-                  <span>{row.label}</span><span style={{ fontFamily: 'monospace' }}>{row.value}/s</span>
-                </div>
-                <NeonProgressBar value={row.value} max={2000} color={row.color} />
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-        <GlassCard title="Read / Write Ratio">
-          <div style={{ position: 'relative', height: 240 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={[{ value: metrics.readWriteRatio }, { value: 100 - metrics.readWriteRatio }]} cx="50%" cy="50%" innerRadius={70} outerRadius={90} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
-                  <Cell fill={THEME.primary} filter="url(#neonGlow)" /><Cell fill="#1e293b" />
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-              <div style={{ fontSize: 32, fontWeight: 700, color: THEME.textMain }}>{metrics.readWriteRatio}%</div>
-              <div style={{ fontSize: 11, color: THEME.primary, letterSpacing: 2 }}>READS</div>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
-    </>
-  );
-
-  const ResourcesTab = () => (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
-        <GlassCard title="CPU Usage" theme={currentTheme}><ResourceGauge label="Core Load" value={metrics.cpuUsage.toFixed(1)} color={currentTheme.primary} /></GlassCard>
-        <GlassCard title="Memory Usage" theme={currentTheme}><ResourceGauge label="RAM Used" value={metrics.memoryUsage.toFixed(1)} color={currentTheme.secondary} /></GlassCard>
-        <GlassCard title="Disk Capacity" theme={currentTheme}><ResourceGauge label="Disk Used" value={metrics.diskUsed.toFixed(1)} color={THEME.warning} /></GlassCard>
-    </div>
-  );
-
-  const PerformanceTab = () => (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24 }}>
-        <GlassCard title="Query Time Distribution" theme={currentTheme}>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={queryTimeDistribution}><ChartDefs theme={currentTheme} /><CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} /><XAxis dataKey="range" /><YAxis /><Tooltip content={<CustomTooltip />} /><Bar dataKey="count" fill="url(#barGradient)" filter="url(#neonGlow)" /></BarChart>
-          </ResponsiveContainer>
-        </GlassCard>
     </div>
   );
 
@@ -411,14 +404,14 @@ const UniversalDBMonitor = () => {
         </div>
     ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-            <GlassCard title="Details List" theme={currentTheme} rightNode={<button onClick={() => setReliabilityViewMode(null)} style={{ background: 'transparent', border: 'none', color: '#ccc', cursor: 'pointer' }}>Back</button>}>
+            <GlassCard title="List" theme={currentTheme} rightNode={<button onClick={() => setReliabilityViewMode(null)} style={{ background: 'transparent', border: 'none', color: '#ccc', cursor: 'pointer' }}>Back</button>}>
                 {(reliabilityViewMode === 'active' ? mockConnections : reliabilityViewMode === 'errors' ? mockErrorLogs : mockConnections).map((item, i) => (
                     <div key={i} style={{ padding: 12, borderBottom: '1px solid #333', color: '#ccc', cursor: 'pointer' }} onClick={() => setSelectedReliabilityItem(item)}>
                         {item.pid || item.type}
                     </div>
                 ))}
             </GlassCard>
-            <GlassCard title="Inspector" theme={currentTheme}>
+            <GlassCard title="Details" theme={currentTheme}>
                 {selectedReliabilityItem ? <div style={{ color: '#fff' }}>{JSON.stringify(selectedReliabilityItem, null, 2)}</div> : <EmptyState icon={Search} text="Select Item" />}
             </GlassCard>
         </div>
@@ -469,8 +462,7 @@ const UniversalDBMonitor = () => {
           <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, fontFamily: 'monospace', fontSize: 11, color: '#ccc', border: '1px solid #333', lineHeight: 1.6 }}>
             <div style={{ cursor: 'pointer', marginBottom: 4 }} onClick={() => setConnectionString('postgresql://user:pass@host:5432/db')}>PostgreSQL: postgresql://user:pass@host:5432/db</div>
             <div style={{ cursor: 'pointer', marginBottom: 4 }} onClick={() => setConnectionString('mysql://user:pass@host:3306/db')}>MySQL: mysql://user:pass@host:3306/db</div>
-            <div style={{ cursor: 'pointer', marginBottom: 4 }} onClick={() => setConnectionString('sqlite:///path/to/db.sqlite')}>SQLite: sqlite:///path/to/db.sqlite</div>
-            <div style={{ cursor: 'pointer' }} onClick={() => setConnectionString('oracle://user:pass@host:1521/sid')}>Oracle: oracle://user:pass@host:1521/sid</div>
+            <div style={{ cursor: 'pointer' }} onClick={() => setConnectionString('sqlite:///path/to/db.sqlite')}>SQLite: sqlite:///path/to/db.sqlite</div>
           </div>
         </div>
         <input type="text" value={connectionString} onChange={e => setConnectionString(e.target.value)} style={{ width: '100%', padding: 12, marginBottom: 20, background: '#1e293b', border: '1px solid #333', color: '#fff', fontFamily: 'monospace' }} />
@@ -482,15 +474,29 @@ const UniversalDBMonitor = () => {
     </div>
   );
 
+  // --- RENDER ---
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', background: currentTheme.bg, color: THEME.textMain, fontFamily: 'sans-serif', overflow: 'hidden' }}>
         {showConnectModal && <ConnectionModal />}
         
-        <aside style={{ width: isSidebarOpen ? 260 : 70, background: 'rgba(0,0,0,0.3)', borderRight: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', transition: 'width 0.3s' }}>
+        <aside style={{ width: isSidebarOpen ? 260 : 70, background: 'rgba(0,0,0,0.3)', borderRight: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', transition: 'width 0.3s', zIndex: 20 }}>
             <div style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'space-between' : 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                 {isSidebarOpen ? <span style={{ fontWeight: 'bold' }}>{dbType} Monitor</span> : <Database color={currentTheme.primary} />}
                 <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer' }}><ChevronLeft size={16} /></button>
             </div>
+            {isSidebarOpen && (
+              <div style={{ padding: '0 20px', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 4 }}>STATUS</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: isDemoMode ? '#F59E0B' : '#10B981', fontWeight: 600 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: isDemoMode ? '#F59E0B' : '#10B981', boxShadow: `0 0 10px ${isDemoMode ? '#F59E0B' : '#10B981'}` }} />
+                  {isDemoMode ? 'Demo Data' : 'Live Connection'}
+                </div>
+              </div>
+            )}
             <div style={{ flex: 1, padding: 10 }}>
                 {[{ id: 'overview', icon: Activity, label: 'Overview' }, { id: 'performance', icon: Zap, label: 'Performance' }, { id: 'resources', icon: HardDrive, label: 'Resources' }, { id: 'reliability', icon: CheckCircle, label: 'Reliability' }, { id: 'indexes', icon: Layers, label: 'Indexes' }, { id: 'api', icon: Network, label: 'API Tracing' }].map(item => (
                     <div key={item.id} onClick={() => setActiveTab(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, cursor: 'pointer', color: activeTab === item.id ? currentTheme.primary : '#ccc', background: activeTab === item.id ? 'rgba(255,255,255,0.05)' : 'transparent', borderRadius: 8, marginBottom: 4, justifyContent: isSidebarOpen ? 'flex-start' : 'center' }}>
