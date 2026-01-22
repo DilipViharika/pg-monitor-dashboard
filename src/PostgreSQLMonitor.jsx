@@ -3,7 +3,8 @@ import {
   Activity, Database, HardDrive, Zap, Clock, AlertTriangle,
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
   XCircle, Search, Cpu, Layers, Terminal, PlusCircle, Trash2,
-  Power, RefreshCw, ChevronLeft, User as UserIcon, Globe
+  Power, RefreshCw, ChevronLeft, ChevronRight, User as UserIcon, Globe,
+  Menu, Code, FileText
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -57,6 +58,14 @@ const unusedIndexesData = [
   { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never' },
   { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15' },
   { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20' },
+];
+
+// New Data for Low Hit Ratio Analysis
+const lowHitRatioData = [
+  { id: 1, table: 'large_audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM large_audit_logs WHERE event_data LIKE '%error%'", recommendation: 'Leading wildcard forces Seq Scan. Use Trigram Index or Full Text Search.' },
+  { id: 2, table: 'payment_history', ratio: 45, total_scans: '890k', problem_query: "SELECT sum(amt) FROM payment_history WHERE created_at::date = now()::date", recommendation: 'Casting on column prevents index use. Rewrite to range query: WHERE created_at >= ...' },
+  { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected. Index scan ineffective. Run VACUUM ANALYZE.' },
+  { id: 4, table: 'user_sessions', ratio: 55, total_scans: '320k', problem_query: "SELECT * FROM user_sessions WHERE active = false", recommendation: 'Low selectivity on boolean column. Partial index might help.' },
 ];
 
 // --- GLOBAL SVG FILTERS ---
@@ -210,15 +219,6 @@ const ResourceGauge = ({ label, value, color }) => {
   );
 };
 
-const EmptyState = ({ icon: Icon, text }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: THEME.textMuted, gap: 16, opacity: 0.7 }}>
-    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Icon size={32} />
-    </div>
-    <div>{text}</div>
-  </div>
-);
-
 // --- DRILL DOWN SUB-COMPONENTS ---
 const AIAgentView = ({ type, data }) => {
   if (!data) return (
@@ -240,60 +240,90 @@ const AIAgentView = ({ type, data }) => {
           <span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span>
         </div>
         <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>
-          {type === 'missing' 
-            ? <>Table <strong>{data.table}</strong> is experiencing heavy sequential scans on column <strong>{data.column}</strong>. Creating an index will reduce I/O by approx <strong>{data.improvement}</strong>.</>
-            : <>Index <strong>{data.indexName}</strong> on table <strong>{data.table}</strong> represents <strong>{data.size}</strong> of wasted storage. It has not been used since <strong>{data.lastUsed}</strong>.</>
+          {type === 'missing' && 
+            <>Table <strong>{data.table}</strong> is experiencing heavy sequential scans on column <strong>{data.column}</strong>. Creating an index will reduce I/O by approx <strong>{data.improvement}</strong>.</>
+          }
+          {type === 'unused' && 
+            <>Index <strong>{data.indexName}</strong> on table <strong>{data.table}</strong> represents <strong>{data.size}</strong> of wasted storage. It has not been used since <strong>{data.lastUsed}</strong>.</>
+          }
+          {type === 'hitRatio' && 
+            <>Table <strong>{data.table}</strong> has a critical hit ratio of <strong>{data.ratio}%</strong>. The query below is forcing sequential scans due to: <strong>{data.recommendation.split('.')[0]}</strong>.</>
           }
         </p>
       </div>
 
       <div style={{ flex: 1, background: '#0f172a', borderRadius: 12, border: `1px solid ${THEME.grid}`, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ background: '#1e293b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${THEME.grid}` }}>
-          <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>SUGGESTED_FIX.sql</span>
+          <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>
+            {type === 'hitRatio' ? 'PROBLEM_QUERY.sql' : 'SUGGESTED_FIX.sql'}
+          </span>
           <div style={{ display: 'flex', gap: 6 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></div>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }}></div>
           </div>
         </div>
-        <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1 }}>
-          {type === 'missing' ? (
+        <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1, overflowY: 'auto' }}>
+          {type === 'missing' && (
             <>
               <span style={{ color: '#c084fc' }}>CREATE INDEX CONCURRENTLY</span> idx_{data.table}_{data.column}<br/>
               <span style={{ color: '#c084fc' }}>ON</span> {data.table} ({data.column});
             </>
-          ) : (
+          )}
+          {type === 'unused' && (
             <>
               <span style={{ color: '#f43f5e' }}>DROP INDEX CONCURRENTLY</span> {data.indexName};
             </>
           )}
+          {type === 'hitRatio' && (
+            <>
+              <span style={{ color: '#64748b' }}>-- Problem Query:</span><br/>
+              {data.problem_query}<br/><br/>
+              <span style={{ color: '#64748b' }}>-- AI Recommendation:</span><br/>
+              <span style={{ color: THEME.success }}>{data.recommendation}</span>
+            </>
+          )}
         </div>
-        <div style={{ padding: 16, borderTop: `1px solid ${THEME.grid}`, background: 'rgba(15, 23, 42, 0.5)' }}>
-           <button style={{ 
-             width: '100%', padding: '10px', borderRadius: 8, border: 'none', 
-             background: type === 'missing' ? THEME.success : THEME.danger, 
-             color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer',
-             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-             boxShadow: `0 0 15px ${type === 'missing' ? THEME.success : THEME.danger}40`
-           }}>
-             {type === 'missing' ? <PlusCircle size={14} /> : <Trash2 size={14} />}
-             {type === 'missing' ? 'APPLY INDEX' : 'DROP INDEX'}
-           </button>
-        </div>
+        
+        {type !== 'hitRatio' && (
+          <div style={{ padding: 16, borderTop: `1px solid ${THEME.grid}`, background: 'rgba(15, 23, 42, 0.5)' }}>
+             <button style={{ 
+               width: '100%', padding: '10px', borderRadius: 8, border: 'none', 
+               background: type === 'missing' ? THEME.success : THEME.danger, 
+               color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer',
+               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+               boxShadow: `0 0 15px ${type === 'missing' ? THEME.success : THEME.danger}40`
+             }}>
+               {type === 'missing' ? <PlusCircle size={14} /> : <Trash2 size={14} />}
+               {type === 'missing' ? 'APPLY INDEX' : 'DROP INDEX'}
+             </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
+const EmptyState = ({ icon: Icon, text }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: THEME.textMuted, gap: 16, opacity: 0.7 }}>
+    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={32} />
+    </div>
+    <div>{text}</div>
+  </div>
+);
+
 // --- MAIN DASHBOARD COMPONENT ---
 const PostgreSQLMonitor = () => {
+  // Sidebar State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   
-  // --- LIFTED STATE FOR DRILL DOWNS (Fixes disappearing bug) ---
-  const [indexViewMode, setIndexViewMode] = useState(null); 
+  // --- LIFTED STATE FOR DRILL DOWNS ---
+  const [indexViewMode, setIndexViewMode] = useState(null); // 'missing' | 'unused' | 'hitRatio'
   const [selectedIndexItem, setSelectedIndexItem] = useState(null); 
 
-  const [reliabilityViewMode, setReliabilityViewMode] = useState(null); // 'active', 'idle', 'errors', null
+  const [reliabilityViewMode, setReliabilityViewMode] = useState(null); 
   const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
 
   // --- DATA STATES ---
@@ -355,7 +385,7 @@ const PostgreSQLMonitor = () => {
     setSparklineData(Array.from({ length: 20 }, () => ({ value: Math.random() * 100 })));
   }, []);
 
-  // Live Update Interval (Increased to 5s to reduce flicker)
+  // Live Update Interval
   useEffect(() => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
@@ -367,7 +397,7 @@ const PostgreSQLMonitor = () => {
         diskIOReadRate: Math.floor(Math.random() * 100) + 200,
       }));
       setSparklineData(prev => [...prev.slice(1), { value: Math.random() * 100 }]);
-    }, 5000); // Changed to 5000ms
+    }, 5000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -541,7 +571,6 @@ const PostgreSQLMonitor = () => {
   );
 
   const ReliabilityTab = () => {
-    // List Filtering
     const getListItems = () => {
       if (reliabilityViewMode === 'active') return mockConnections.filter(c => c.state === 'active');
       if (reliabilityViewMode === 'idle') return mockConnections.filter(c => c.state.includes('idle'));
@@ -776,8 +805,10 @@ const PostgreSQLMonitor = () => {
 
   const IndexesTab = () => {
     const renderIndexDetailList = () => {
-        const data = indexViewMode === 'missing' ? missingIndexesData : unusedIndexesData;
-        const isMissing = indexViewMode === 'missing';
+        let data = [];
+        if (indexViewMode === 'missing') data = missingIndexesData;
+        else if (indexViewMode === 'unused') data = unusedIndexesData;
+        else if (indexViewMode === 'hitRatio') data = lowHitRatioData;
     
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
@@ -796,20 +827,29 @@ const PostgreSQLMonitor = () => {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: THEME.textMain }}>{item.table}</span>
-                  <span style={{ 
-                    fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 700,
-                    background: isMissing 
-                      ? (item.impact === 'Critical' ? 'rgba(244,63,94,0.2)' : 'rgba(245,158,11,0.2)')
-                      : 'rgba(148,163,184,0.2)',
-                    color: isMissing 
-                      ? (item.impact === 'Critical' ? THEME.danger : THEME.warning)
-                      : THEME.textMuted
-                  }}>
-                    {isMissing ? item.impact : item.size}
-                  </span>
+                  
+                  {/* CONDITIONAL BADGE */}
+                  {indexViewMode === 'missing' && (
+                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 700, background: item.impact === 'Critical' ? 'rgba(244,63,94,0.2)' : 'rgba(245,158,11,0.2)', color: item.impact === 'Critical' ? THEME.danger : THEME.warning }}>
+                        {item.impact}
+                    </span>
+                  )}
+                  {indexViewMode === 'unused' && (
+                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 700, background: 'rgba(148,163,184,0.2)', color: THEME.textMuted }}>
+                        {item.size}
+                    </span>
+                  )}
+                  {indexViewMode === 'hitRatio' && (
+                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 700, background: item.ratio < 30 ? 'rgba(244,63,94,0.2)' : 'rgba(245,158,11,0.2)', color: item.ratio < 30 ? THEME.danger : THEME.warning }}>
+                        {item.ratio}% Ratio
+                    </span>
+                  )}
                 </div>
+
                 <div style={{ fontSize: 12, color: THEME.textMuted, fontFamily: 'monospace' }}>
-                  {isMissing ? `Column: ${item.column}` : item.indexName}
+                  {indexViewMode === 'missing' && `Column: ${item.column}`}
+                  {indexViewMode === 'unused' && item.indexName}
+                  {indexViewMode === 'hitRatio' && `${item.total_scans} Total Scans`}
                 </div>
               </div>
             ))}
@@ -820,7 +860,12 @@ const PostgreSQLMonitor = () => {
     return (
         <>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginBottom: 24 }}>
-            <MetricCard icon={TrendingUp} title="Index Hit Ratio" value={metrics.indexHitRatio.toFixed(1)} unit="%" color={THEME.success} />
+            <MetricCard 
+                icon={TrendingUp} title="Index Hit Ratio" value={metrics.indexHitRatio.toFixed(1)} unit="%" color={THEME.success} 
+                active={indexViewMode === 'hitRatio'}
+                onClick={() => { setIndexViewMode(indexViewMode === 'hitRatio' ? null : 'hitRatio'); setSelectedIndexItem(null); }}
+                subtitle={indexViewMode === 'hitRatio' ? "Click to close details" : "Click to analyze low ratios"}
+            />
             <MetricCard 
                 icon={AlertTriangle} title="Missing Indexes" value={metrics.missingIndexes} color={THEME.warning} 
                 active={indexViewMode === 'missing'}
@@ -868,8 +913,16 @@ const PostgreSQLMonitor = () => {
         ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 24, height: 400, animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                 <GlassCard 
-                    title={indexViewMode === 'missing' ? "Tables needing indexes" : "Unused index candidates"} 
-                    rightNode={<div style={{ fontSize: 11, color: THEME.textMuted }}>{indexViewMode === 'missing' ? missingIndexesData.length : unusedIndexesData.length} Items</div>}
+                    title={
+                        indexViewMode === 'missing' ? "Tables needing indexes" : 
+                        indexViewMode === 'unused' ? "Unused index candidates" :
+                        "Tables with Low Hit Ratio"
+                    }
+                    rightNode={<div style={{ fontSize: 11, color: THEME.textMuted }}>{
+                        indexViewMode === 'missing' ? missingIndexesData.length : 
+                        indexViewMode === 'unused' ? unusedIndexesData.length :
+                        lowHitRatioData.length
+                    } Items</div>}
                 >
                     {renderIndexDetailList()}
                 </GlassCard>
@@ -900,45 +953,78 @@ const PostgreSQLMonitor = () => {
       
       <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
         {/* SIDEBAR */}
-        <aside style={{ width: 260, background: 'rgba(2, 6, 23, 0.95)', borderRight: `1px solid ${THEME.grid}`, display: 'flex', flexDirection: 'column', zIndex: 10 }}>
-          <div style={{ padding: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-               <div style={{ width: 40, height: 40, borderRadius: 10, background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 20px ${THEME.primary}40` }}>
-                 <Database color="#fff" size={20} />
+        <aside style={{ 
+          width: isSidebarOpen ? 260 : 70, 
+          background: 'rgba(2, 6, 23, 0.95)', 
+          borderRight: `1px solid ${THEME.grid}`, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          zIndex: 10,
+          transition: 'width 0.3s ease'
+        }}>
+          <div style={{ padding: '24px 12px', borderBottom: `1px solid ${THEME.grid}`, display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
+             {isSidebarOpen && (
+               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Database color="#fff" size={16} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>PG Monitor</div>
+                    <div style={{ fontSize: 10, color: THEME.success }}>Online</div>
+                  </div>
                </div>
-               <div>
-                 <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.5px' }}>PG Monitor</div>
-                 <div style={{ fontSize: 11, color: THEME.success, fontWeight: 600 }}>Demo</div>
+             )}
+             {!isSidebarOpen && (
+               <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Database color="#fff" size={16} />
                </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-               {[
-                 { id: 'overview', label: 'Overview', icon: Activity },
-                 { id: 'performance', label: 'Performance', icon: Zap },
-                 { id: 'resources', label: 'Resources', icon: HardDrive },
-                 { id: 'reliability', label: 'Reliability', icon: CheckCircle },
-                 { id: 'indexes', label: 'Indexes', icon: Layers },
-               ].map(item => (
-                 <button
-                   key={item.id}
-                   onClick={() => { setActiveTab(item.id); setIndexViewMode(null); setReliabilityViewMode(null); }}
-                   style={{
-                     display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
-                     background: activeTab === item.id ? `linear-gradient(90deg, ${THEME.primary}20, transparent)` : 'transparent',
-                     border: 'none', borderLeft: activeTab === item.id ? `3px solid ${THEME.primary}` : '3px solid transparent',
-                     color: activeTab === item.id ? THEME.primary : THEME.textMuted,
-                     cursor: 'pointer', fontSize: 14, fontWeight: 500, borderRadius: '0 8px 8px 0', transition: 'all 0.2s'
-                   }}
-                 >
-                   <item.icon size={18} />
-                   {item.label}
-                 </button>
-               ))}
-            </div>
+             )}
+             <button 
+               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+               style={{ background: 'transparent', border: 'none', color: THEME.textMuted, cursor: 'pointer', display: isSidebarOpen ? 'block' : 'none' }}
+             >
+               <ChevronLeft size={18} />
+             </button>
           </div>
           
-          <div style={{ marginTop: 'auto', padding: 24, borderTop: `1px solid ${THEME.grid}` }}>
+          {!isSidebarOpen && (
+             <button 
+               onClick={() => setIsSidebarOpen(true)}
+               style={{ marginTop: 12, background: 'transparent', border: 'none', color: THEME.textMuted, cursor: 'pointer', alignSelf: 'center' }}
+             >
+               <ChevronRight size={18} />
+             </button>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '16px 8px' }}>
+             {[
+               { id: 'overview', label: 'Overview', icon: Activity },
+               { id: 'performance', label: 'Performance', icon: Zap },
+               { id: 'resources', label: 'Resources', icon: HardDrive },
+               { id: 'reliability', label: 'Reliability', icon: CheckCircle },
+               { id: 'indexes', label: 'Indexes', icon: Layers },
+             ].map(item => (
+               <button
+                 key={item.id}
+                 onClick={() => { setActiveTab(item.id); setIndexViewMode(null); setReliabilityViewMode(null); }}
+                 style={{
+                   display: 'flex', alignItems: 'center', gap: 12, padding: isSidebarOpen ? '12px 16px' : '12px',
+                   justifyContent: isSidebarOpen ? 'flex-start' : 'center',
+                   background: activeTab === item.id ? `linear-gradient(90deg, ${THEME.primary}20, transparent)` : 'transparent',
+                   border: 'none', borderLeft: activeTab === item.id ? `3px solid ${THEME.primary}` : '3px solid transparent',
+                   color: activeTab === item.id ? THEME.primary : THEME.textMuted,
+                   cursor: 'pointer', fontSize: 14, fontWeight: 500, borderRadius: '0 8px 8px 0', transition: 'all 0.2s',
+                   position: 'relative'
+                 }}
+                 title={!isSidebarOpen ? item.label : ''}
+               >
+                 <item.icon size={20} />
+                 {isSidebarOpen && <span>{item.label}</span>}
+               </button>
+             ))}
+          </div>
+          
+          <div style={{ marginTop: 'auto', padding: 24, borderTop: `1px solid ${THEME.grid}`, display: isSidebarOpen ? 'block' : 'none' }}>
              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: THEME.success }}>
                 <span style={{ width: 8, height: 8, background: THEME.success, borderRadius: '50%', boxShadow: `0 0 10px ${THEME.success}` }} />
                 System Healthy
