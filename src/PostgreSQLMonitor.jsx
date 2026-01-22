@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Activity, Database, HardDrive, Zap, Clock, AlertTriangle,
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
-  XCircle, Search, Cpu, Layers, Terminal, PlusCircle, Trash2
+  XCircle, Search, Cpu, Layers, Terminal, PlusCircle, Trash2,
+  Power, RefreshCw, ChevronLeft, User as UserIcon, Globe
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -25,6 +26,39 @@ const THEME = {
   grid: '#1E293B',
   ai: '#a855f7' // Purple for AI
 };
+
+// --- MOCK DATA ---
+
+const mockConnections = [
+  { pid: 14023, user: 'postgres', db: 'production', app: 'pgAdmin 4', state: 'active', duration: '00:00:04', query: 'SELECT * FROM pg_stat_activity WHERE state = \'active\';', ip: '192.168.1.5' },
+  { pid: 14099, user: 'app_user', db: 'production', app: 'NodeJS Backend', state: 'idle in transaction', duration: '00:15:23', query: 'UPDATE orders SET status = \'processing\' WHERE id = 4591;', ip: '10.0.0.12' },
+  { pid: 15102, user: 'analytics', db: 'warehouse', app: 'Metabase', state: 'active', duration: '00:42:10', query: 'SELECT region, SUM(amount) FROM sales GROUP BY region ORDER BY 2 DESC;', ip: '10.0.0.8' },
+  { pid: 15201, user: 'app_user', db: 'production', app: 'Go Worker', state: 'active', duration: '00:00:01', query: 'INSERT INTO logs (level, msg) VALUES (\'info\', \'Job started\');', ip: '10.0.0.15' },
+  { pid: 15333, user: 'postgres', db: 'postgres', app: 'psql', state: 'idle', duration: '01:20:00', query: '-- idle connection', ip: 'local' },
+  { pid: 15440, user: 'etl_service', db: 'warehouse', app: 'Python Script', state: 'active', duration: '00:03:45', query: 'COPY transactions FROM \'/tmp/dump.csv\' WITH CSV HEADER;', ip: '10.0.0.22' },
+];
+
+const mockErrorLogs = [
+  { id: 101, type: 'Connection Timeout', timestamp: '10:42:15', user: 'app_svc', db: 'production', query: 'SELECT * FROM large_table_v2...', detail: 'Client closed connection before response' },
+  { id: 102, type: 'Deadlock Detected', timestamp: '10:45:22', user: 'worker_01', db: 'warehouse', query: 'UPDATE inventory SET stock = stock - 1...', detail: 'Process 14022 waits for ShareLock on transaction 99201' },
+  { id: 103, type: 'Query Timeout', timestamp: '11:01:05', user: 'analytics', db: 'warehouse', query: 'SELECT * FROM logs WHERE created_at < ...', detail: 'Canceling statement due to statement_timeout' },
+  { id: 104, type: 'Connection Timeout', timestamp: '11:15:30', user: 'web_client', db: 'production', query: 'AUTH CHECK...', detail: 'terminating connection due to idle-in-transaction timeout' },
+  { id: 105, type: 'Constraint Violation', timestamp: '11:20:12', user: 'api_write', db: 'production', query: 'INSERT INTO users (email) VALUES...', detail: 'Key (email)=(test@example.com) already exists' },
+];
+
+const missingIndexesData = [
+  { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%' },
+  { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%' },
+  { id: 3, table: 'audit_logs', column: 'user_id', impact: 'Medium', scans: '420k', improvement: '75%' },
+  { id: 4, table: 'products', column: 'category_id', impact: 'High', scans: '310k', improvement: '88%' },
+];
+
+const unusedIndexesData = [
+  { id: 1, table: 'users', indexName: 'idx_users_last_login_old', size: '450MB', lastUsed: '2023-11-04' },
+  { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never' },
+  { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15' },
+  { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20' },
+];
 
 // --- GLOBAL SVG FILTERS ---
 const ChartDefs = () => (
@@ -182,7 +216,8 @@ const ResourceGauge = ({ label, value, color }) => {
   );
 };
 
-// --- AI COMPONENT FOR INDEXES ---
+// --- SUB-COMPONENTS FOR DRILL DOWNS ---
+
 const AIAgentView = ({ type, data }) => {
   if (!data) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
@@ -246,18 +281,27 @@ const AIAgentView = ({ type, data }) => {
       </div>
     </div>
   );
-}
+};
+
+const EmptyState = ({ icon: Icon, text }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: THEME.textMuted, gap: 16, opacity: 0.7 }}>
+    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={32} />
+    </div>
+    <div>{text}</div>
+  </div>
+);
 
 // --- MAIN DASHBOARD ---
 
 const PostgreSQLMonitor = () => {
   const [activeTab, setActiveTab] = useState('overview');
   
-  // Index Interaction State
-  const [indexViewMode, setIndexViewMode] = useState(null); // 'missing', 'unused', or null
+  // Tab-Specific View Modes
+  const [indexViewMode, setIndexViewMode] = useState(null); 
   const [selectedItem, setSelectedItem] = useState(null); 
-
-  // --- STATE DATA ---
+  
+  // Data States
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
     selectPerSec: 1245, insertPerSec: 342, updatePerSec: 198, deletePerSec: 62,
@@ -279,23 +323,8 @@ const PostgreSQLMonitor = () => {
   const [sparklineData, setSparklineData] = useState([]);
   const [recentAlerts, setRecentAlerts] = useState([]);
 
-  // Mock Index Data
-  const missingIndexesData = [
-    { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%' },
-    { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%' },
-    { id: 3, table: 'audit_logs', column: 'user_id', impact: 'Medium', scans: '420k', improvement: '75%' },
-    { id: 4, table: 'products', column: 'category_id', impact: 'High', scans: '310k', improvement: '88%' },
-  ];
-
-  const unusedIndexesData = [
-    { id: 1, table: 'users', indexName: 'idx_users_last_login_old', size: '450MB', lastUsed: '2023-11-04' },
-    { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never' },
-    { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15' },
-    { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20' },
-  ];
-
-  // Data Generation
   useEffect(() => {
+    // Generate Initial Mock Data
     setLast30Days(Array.from({ length: 30 }, (_, i) => ({
       date: new Date(new Date().setDate(new Date().getDate() - (29 - i))).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
       qps: Math.floor(Math.random() * 800) + 1200,
@@ -331,7 +360,7 @@ const PostgreSQLMonitor = () => {
     setSparklineData(Array.from({ length: 20 }, () => ({ value: Math.random() * 100 })));
   }, []);
 
-  // Live Updates
+  // Live Updates Simulation
   useEffect(() => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
@@ -349,7 +378,7 @@ const PostgreSQLMonitor = () => {
 
   const formatUptime = seconds => `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 
-  // --- SECTIONS ---
+  // --- TAB RENDERERS ---
 
   const OverviewTab = () => (
     <>
@@ -516,64 +545,260 @@ const PostgreSQLMonitor = () => {
     </>
   );
 
-  const ReliabilityTab = () => (
-    <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <MetricCard icon={CheckCircle} title="Availability" value={metrics.availability} unit="%" color={THEME.success} />
-        <MetricCard icon={XCircle} title="Downtime Incidents" value={metrics.downtimeIncidents} color={THEME.danger} />
-        <MetricCard icon={AlertCircle} title="Error Rate" value={metrics.errorRate.toFixed(1)} unit="/min" color={THEME.warning} />
-        <MetricCard icon={Lock} title="Deadlocks" value={metrics.deadlockCount} color={THEME.secondary} />
-      </div>
+  const ReliabilityTab = () => {
+    // drillDownType: 'active' | 'idle' | 'errors' | null
+    const [drillDownType, setDrillDownType] = useState(null); 
+    const [selectedItem, setSelectedItem] = useState(null); 
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
-        <GlassCard title="Connection Health">
-           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: THEME.textMain }}>
-                    <span>Active Connections</span>
+    const getListItems = () => {
+      if (drillDownType === 'active') return mockConnections.filter(c => c.state === 'active');
+      if (drillDownType === 'idle') return mockConnections.filter(c => c.state.includes('idle'));
+      if (drillDownType === 'errors') return mockErrorLogs;
+      return [];
+    };
+
+    const ConnectionDetailPanel = ({ data }) => {
+      if (!data) return <EmptyState icon={Server} text="Select a connection to view details" />;
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 24, animation: 'fadeIn 0.3s ease' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: 10, color: THEME.primary, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>PID: {data.pid}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: THEME.textMain }}>{data.app}</div>
+              <div style={{ fontSize: 12, color: THEME.textMuted, display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <Globe size={12} /> {data.ip}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ 
+                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                background: data.state === 'active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                color: data.state === 'active' ? THEME.success : THEME.warning,
+                border: `1px solid ${data.state === 'active' ? THEME.success : THEME.warning}40`
+              }}>
+                {data.state.toUpperCase()}
+              </div>
+              <div style={{ fontSize: 12, color: THEME.textMain, marginTop: 6, fontFamily: 'monospace' }}>{data.duration}</div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: 12, borderRadius: 8, border: `1px solid ${THEME.glassBorder}` }}>
+              <div style={{ fontSize: 10, color: THEME.textMuted, marginBottom: 4 }}>USER</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: THEME.textMain, fontWeight: 600 }}>
+                <UserIcon size={14} color={THEME.primary} /> {data.user}
+              </div>
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.03)', padding: 12, borderRadius: 8, border: `1px solid ${THEME.glassBorder}` }}>
+              <div style={{ fontSize: 10, color: THEME.textMuted, marginBottom: 4 }}>DATABASE</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: THEME.textMain, fontWeight: 600 }}>
+                <Database size={14} color={THEME.secondary} /> {data.db}
+              </div>
+            </div>
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 11, color: THEME.textMuted, marginBottom: 8, fontWeight: 600 }}>LAST QUERY</div>
+            <div style={{ 
+              flex: 1, background: '#0f172a', borderRadius: 8, border: `1px solid ${THEME.grid}`, 
+              padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1.6,
+              color: '#94a3b8', overflowY: 'auto'
+            }}>
+              {data.query}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 'auto' }}>
+            <button style={{ flex: 1, padding: 12, borderRadius: 8, border: `1px solid ${THEME.danger}40`, background: 'rgba(244, 63, 94, 0.15)', color: THEME.danger, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <Power size={16} /> Terminate
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    const ErrorDetailPanel = ({ data }) => {
+      if (!data) return <EmptyState icon={AlertTriangle} text="Select an error to view stack trace" />;
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 24, animation: 'fadeIn 0.3s ease' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+               <div style={{ fontSize: 10, color: THEME.danger, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>ERROR LOG #{data.id}</div>
+               <div style={{ fontSize: 18, fontWeight: 700, color: THEME.textMain }}>{data.type}</div>
+               <div style={{ fontSize: 12, color: THEME.textMuted, marginTop: 4 }}>{data.timestamp} • {data.user}</div>
+            </div>
+            <AlertTriangle size={24} color={THEME.danger} />
+          </div>
+
+          <div style={{ background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, padding: 16, borderRadius: 8 }}>
+             <div style={{ fontSize: 11, color: THEME.danger, fontWeight: 700, marginBottom: 4 }}>ERROR DETAIL</div>
+             <div style={{ fontSize: 13, color: '#fca5a5' }}>{data.detail}</div>
+          </div>
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 11, color: THEME.textMuted, marginBottom: 8, fontWeight: 600 }}>CAUSING QUERY</div>
+            <div style={{ 
+              flex: 1, background: '#0f172a', borderRadius: 8, border: `1px solid ${THEME.grid}`, 
+              padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1.6,
+              color: '#94a3b8', overflowY: 'auto'
+            }}>
+              {data.query}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <>
+        {/* Top Metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+          <MetricCard icon={CheckCircle} title="Availability" value={metrics.availability} unit="%" color={THEME.success} />
+          <MetricCard icon={XCircle} title="Downtime Incidents" value={metrics.downtimeIncidents} color={THEME.danger} />
+          <MetricCard icon={AlertCircle} title="Error Rate" value={metrics.errorRate.toFixed(1)} unit="/min" color={THEME.warning} />
+          <MetricCard icon={Lock} title="Deadlocks" value={metrics.deadlockCount} color={THEME.secondary} />
+        </div>
+
+        {/* DEFAULT OVERVIEW VIEW */}
+        {!drillDownType ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, animation: 'fadeIn 0.5s ease' }}>
+            <GlassCard title="Connection Health">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                
+                {/* Active Connections Bar - Clickable */}
+                <div 
+                  onClick={() => { setDrillDownType('active'); setSelectedItem(null); }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: THEME.textMain }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>Active Connections</span>
+                      <div style={{ fontSize: 9, background: THEME.primary, color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>VIEW LIST</div>
+                    </div>
                     <span style={{ fontFamily: 'monospace' }}>{metrics.activeConnections} / {metrics.maxConnections}</span>
-                 </div>
-                 <NeonProgressBar value={metrics.activeConnections} max={metrics.maxConnections} color={THEME.primary} />
-              </div>
-              <div>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: THEME.textMain }}>
-                    <span>Idle Connections</span>
+                  </div>
+                  <NeonProgressBar value={metrics.activeConnections} max={metrics.maxConnections} color={THEME.primary} />
+                </div>
+
+                {/* Idle Connections Bar - Clickable */}
+                <div
+                   onClick={() => { setDrillDownType('idle'); setSelectedItem(null); }}
+                   style={{ cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: THEME.textMain }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>Idle Connections</span>
+                      <div style={{ fontSize: 9, background: THEME.textMuted, color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>VIEW LIST</div>
+                    </div>
                     <span style={{ fontFamily: 'monospace' }}>{metrics.idleConnections} / {metrics.maxConnections}</span>
-                 </div>
-                 <NeonProgressBar value={metrics.idleConnections} max={metrics.maxConnections} color={THEME.textMuted} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
-                 <div style={{ background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                  </div>
+                  <NeonProgressBar value={metrics.idleConnections} max={metrics.maxConnections} color={THEME.textMuted} />
+                </div>
+                
+                {/* Small Info Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
+                  <div style={{ background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, padding: 12, borderRadius: 8, textAlign: 'center' }}>
                     <div style={{ fontSize: 20, fontWeight: 700, color: THEME.danger }}>{metrics.failedConnections}</div>
                     <div style={{ fontSize: 10, color: THEME.danger, textTransform: 'uppercase' }}>Failed Attempts</div>
-                 </div>
-                 <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: `1px solid ${THEME.warning}40`, padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                  </div>
+                  <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: `1px solid ${THEME.warning}40`, padding: 12, borderRadius: 8, textAlign: 'center' }}>
                     <div style={{ fontSize: 20, fontWeight: 700, color: THEME.warning }}>{metrics.connectionWaitTime}ms</div>
                     <div style={{ fontSize: 10, color: THEME.warning, textTransform: 'uppercase' }}>Wait Time</div>
-                 </div>
+                  </div>
+                </div>
               </div>
-           </div>
-        </GlassCard>
+            </GlassCard>
 
-        <GlassCard title="Top Error Types">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-             {topErrors.map((error, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                   <div style={{ flex: 1 }}>
+            <GlassCard title="Top Error Types">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {topErrors.map((error, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => { setDrillDownType('errors'); setSelectedItem(null); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                  >
+                    <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                         <span style={{ color: THEME.textMain }}>{error.type}</span>
-                         <span style={{ color: THEME.danger }}>{error.percentage}%</span>
+                        <span style={{ color: THEME.textMain }}>{error.type}</span>
+                        <span style={{ color: THEME.danger }}>{error.percentage}%</span>
                       </div>
                       <NeonProgressBar value={error.percentage} max={100} color={THEME.danger} />
-                   </div>
-                   <div style={{ fontSize: 11, color: THEME.textMuted, width: 50, textAlign: 'right' }}>{error.count}</div>
-                </div>
-             ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: THEME.textMuted, width: 50, textAlign: 'right' }}>{error.count}</div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
           </div>
-        </GlassCard>
-      </div>
-    </>
-  );
+        ) : (
+          // --- DRILL DOWN VIEW ---
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: 24, height: 450, animation: 'slideUp 0.3s ease' }}>
+            {/* LEFT LIST PANEL */}
+            <GlassCard 
+              title={drillDownType === 'active' ? "Active Sessions" : drillDownType === 'idle' ? "Idle Sessions" : "Recent Errors"}
+              rightNode={
+                <button 
+                  onClick={() => { setDrillDownType(null); setSelectedItem(null); }}
+                  style={{ background: 'transparent', border: 'none', color: THEME.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}
+                >
+                  <ChevronLeft size={14} /> Back
+                </button>
+              }
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 8px 8px', fontSize: 10, color: THEME.textMuted, fontWeight: 600 }}>
+                 <span>{drillDownType === 'errors' ? 'TYPE / TIME' : 'PID / APP'}</span>
+                 <span>{drillDownType === 'errors' ? 'USER' : 'DURATION'}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', height: '100%', paddingRight: 4 }}>
+                {getListItems().map(item => (
+                  <div
+                    key={item.id || item.pid}
+                    onClick={() => setSelectedItem(item)}
+                    style={{
+                      padding: 12,
+                      borderRadius: 8,
+                      background: (selectedItem?.id === item.id || selectedItem?.pid === item.pid) ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${(selectedItem?.id === item.id || selectedItem?.pid === item.pid) ? THEME.primary : 'rgba(255,255,255,0.05)'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {drillDownType === 'errors' ? (
+                        <>
+                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: THEME.danger }}>{item.type}</span>
+                              <span style={{ fontSize: 11, color: THEME.textMuted }}>{item.timestamp}</span>
+                           </div>
+                           <div style={{ fontSize: 11, color: THEME.textMuted, marginTop: 2 }}>{item.detail.substring(0, 40)}...</div>
+                        </>
+                    ) : (
+                        <>
+                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                               <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.state === 'active' ? THEME.success : THEME.warning, boxShadow: `0 0 8px ${item.state === 'active' ? THEME.success : THEME.warning}` }} />
+                               <span style={{ fontSize: 13, fontWeight: 600, color: THEME.textMain }}>{item.pid}</span>
+                             </div>
+                             <span style={{ fontFamily: 'monospace', fontSize: 12, color: THEME.textMain }}>{item.duration}</span>
+                           </div>
+                           <div style={{ fontSize: 11, color: THEME.textMuted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                             {item.query}
+                           </div>
+                        </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+
+            {/* RIGHT DETAIL PANEL */}
+            <GlassCard title="Inspector Details" rightNode={<RefreshCw size={14} color={THEME.textMuted} style={{ cursor: 'pointer' }} />}>
+              {drillDownType === 'errors' 
+                 ? <ErrorDetailPanel data={selectedItem} />
+                 : <ConnectionDetailPanel data={selectedItem} />
+              }
+            </GlassCard>
+          </div>
+        )}
+      </>
+    );
+  };
 
   const IndexesTab = () => {
     // Helper to render the list of tables/indexes in the drill-down
