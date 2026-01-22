@@ -908,7 +908,7 @@ const PostgreSQLMonitor = () => {
                </div>
                <div>
                  <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.5px' }}>PG Monitor</div>
-                 <div style={{ fontSize: 11, color: THEME.success, fontWeight: 600 }}>PROD-01 • Active</div>
+                 <div style={{ fontSize: 11, color: THEME.success, fontWeight: 600 }}>Demo</div>
                </div>
             </div>
 
