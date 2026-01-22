@@ -397,7 +397,7 @@ const PostgreSQLMonitor = () => {
         diskIOReadRate: Math.floor(Math.random() * 100) + 200,
       }));
       setSparklineData(prev => [...prev.slice(1), { value: Math.random() * 100 }]);
-    }, 5000); 
+    }, 30000); 
     return () => clearInterval(interval);
   }, []);
 
