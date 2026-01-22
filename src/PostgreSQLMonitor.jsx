@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
   XCircle, Search, Cpu, Layers, Terminal, Power, RefreshCw, 
   ChevronLeft, ChevronRight, User as UserIcon, Globe, Network, 
-  LogOut, Shield, Key, Mail, Chrome
+  LogOut, Shield, Key, Mail, Chrome, UserPlus, Settings, Eye, Edit3
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -28,79 +28,6 @@ const THEME = {
   ai: '#a855f7' // Purple for AI
 };
 
-// --- AUTHENTICATION HOOK (Updated for Admin Defaults) ---
-const useMockAuth = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem('pg_monitor_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
-  }, []);
-
-  const login = async (loginId, password) => {
-    setLoading(true);
-    setError(null);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // --- ADMIN BYPASS CHECK ---
-        if (loginId === 'admin' && password === 'admin') {
-            const adminUser = { 
-                email: 'admin@system.local', 
-                name: 'System Administrator', 
-                role: 'Super Admin', 
-                avatar: null 
-            };
-            setUser(adminUser);
-            localStorage.setItem('pg_monitor_user', JSON.stringify(adminUser));
-            setLoading(false);
-            resolve(true);
-            return;
-        }
-
-        // --- STANDARD VALIDATION ---
-        if (!loginId.includes('@') || password.length < 6) {
-          setError('Invalid credentials. (Try admin/admin)');
-          setLoading(false);
-          resolve(false);
-          return;
-        }
-        
-        // Simulating "Upsert" for normal emails
-        const userData = { email: loginId, name: loginId.split('@')[0], role: 'User', avatar: null };
-        setUser(userData);
-        localStorage.setItem('pg_monitor_user', JSON.stringify(userData));
-        setLoading(false);
-        resolve(true);
-      }, 1500); 
-    });
-  };
-
-  const googleLogin = async () => {
-    setLoading(true);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const userData = { email: 'google_user@gmail.com', name: 'Google User', role: 'Viewer', avatar: 'G' };
-        setUser(userData);
-        localStorage.setItem('pg_monitor_user', JSON.stringify(userData));
-        setLoading(false);
-        resolve(true);
-      }, 2000);
-    });
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('pg_monitor_user');
-  };
-
-  return { user, loading, error, login, googleLogin, logout };
-};
-
 // --- MOCK DATA ---
 const mockConnections = [
   { pid: 14023, user: 'postgres', db: 'production', app: 'pgAdmin 4', state: 'active', duration: '00:00:04', query: 'SELECT * FROM pg_stat_activity WHERE state = \'active\';', ip: '192.168.1.5' },
@@ -108,29 +35,35 @@ const mockConnections = [
   { pid: 15102, user: 'analytics', db: 'warehouse', app: 'Metabase', state: 'active', duration: '00:42:10', query: 'SELECT region, SUM(amount) FROM sales GROUP BY region ORDER BY 2 DESC;', ip: '10.0.0.8' },
   { pid: 15201, user: 'app_user', db: 'production', app: 'Go Worker', state: 'active', duration: '00:00:01', query: 'INSERT INTO logs (level, msg) VALUES (\'info\', \'Job started\');', ip: '10.0.0.15' },
   { pid: 15333, user: 'postgres', db: 'postgres', app: 'psql', state: 'idle', duration: '01:20:00', query: '-- idle connection', ip: 'local' },
+  { pid: 15440, user: 'etl_service', db: 'warehouse', app: 'Python Script', state: 'active', duration: '00:03:45', query: 'COPY transactions FROM \'/tmp/dump.csv\' WITH CSV HEADER;', ip: '10.0.0.22' },
 ];
 
 const mockErrorLogs = [
   { id: 101, type: 'Connection Timeout', timestamp: '10:42:15', user: 'app_svc', db: 'production', query: 'SELECT * FROM large_table_v2...', detail: 'Client closed connection before response' },
   { id: 102, type: 'Deadlock Detected', timestamp: '10:45:22', user: 'worker_01', db: 'warehouse', query: 'UPDATE inventory SET stock = stock - 1...', detail: 'Process 14022 waits for ShareLock on transaction 99201' },
   { id: 103, type: 'Query Timeout', timestamp: '11:01:05', user: 'analytics', db: 'warehouse', query: 'SELECT * FROM logs WHERE created_at < ...', detail: 'Canceling statement due to statement_timeout' },
+  { id: 104, type: 'Connection Timeout', timestamp: '11:15:30', user: 'web_client', db: 'production', query: 'AUTH CHECK...', detail: 'terminating connection due to idle-in-transaction timeout' },
+  { id: 105, type: 'Constraint Violation', timestamp: '11:20:12', user: 'api_write', db: 'production', query: 'INSERT INTO users (email) VALUES...', detail: 'Key (email)=(test@example.com) already exists' },
 ];
 
 const missingIndexesData = [
   { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%' },
   { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%' },
   { id: 3, table: 'audit_logs', column: 'user_id', impact: 'Medium', scans: '420k', improvement: '75%' },
+  { id: 4, table: 'products', column: 'category_id', impact: 'High', scans: '310k', improvement: '88%' },
 ];
 
 const unusedIndexesData = [
   { id: 1, table: 'users', indexName: 'idx_users_last_login_old', size: '450MB', lastUsed: '2023-11-04' },
   { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never' },
   { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15' },
+  { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20' },
 ];
 
 const lowHitRatioData = [
   { id: 1, table: 'large_audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM large_audit_logs WHERE event_data LIKE '%error%'", recommendation: 'Leading wildcard forces Seq Scan. Use Trigram Index.' },
   { id: 2, table: 'payment_history', ratio: 45, total_scans: '890k', problem_query: "SELECT sum(amt) FROM payment_history WHERE created_at::date = now()::date", recommendation: 'Casting prevents index usage. Use WHERE created_at >= ...' },
+  { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected. Run VACUUM ANALYZE.' },
 ];
 
 const apiQueryData = [
@@ -144,6 +77,7 @@ const apiQueryData = [
     queries: [
       { sql: 'SELECT count(*) FROM orders WHERE status = \'pending\'', calls: 1, duration: 120 },
       { sql: 'SELECT sum(total) FROM payments WHERE created_at > NOW() - INTERVAL \'24h\'', calls: 1, duration: 145 },
+      { sql: 'SELECT * FROM notifications WHERE read = false LIMIT 5', calls: 1, duration: 15 }
     ],
     ai_insight: 'Heavy aggregation on payments table. Consider creating a materialized view for daily stats.'
   },
@@ -157,10 +91,143 @@ const apiQueryData = [
     queries: [
       { sql: 'BEGIN TRANSACTION', calls: 1, duration: 2 },
       { sql: 'SELECT stock FROM products WHERE id = $1 FOR UPDATE', calls: 5, duration: 45 },
+      { sql: 'INSERT INTO orders (...) VALUES (...)', calls: 1, duration: 12 },
+      { sql: 'UPDATE products SET stock = stock - 1 WHERE id = $1', calls: 5, duration: 55 },
+      { sql: 'COMMIT', calls: 1, duration: 5 }
     ],
     ai_insight: 'Detected N+1 Query issue. The product stock check runs 5 times in a loop. Batch these into a single query.'
+  },
+  { 
+    id: 'api_3', 
+    method: 'GET', 
+    endpoint: '/api/v1/users/profile', 
+    avg_duration: 45, 
+    calls_per_min: 2100,
+    db_time_pct: 30,
+    queries: [
+      { sql: 'SELECT * FROM users WHERE id = $1', calls: 1, duration: 5 },
+      { sql: 'SELECT * FROM permissions WHERE role_id = $1', calls: 1, duration: 4 }
+    ],
+    ai_insight: 'Highly optimized. Low database footprint. Cache hit ratio is excellent.'
+  },
+  { 
+    id: 'api_4', 
+    method: 'GET', 
+    endpoint: '/api/v1/search', 
+    avg_duration: 850, 
+    calls_per_min: 45,
+    db_time_pct: 95,
+    queries: [
+      { sql: 'SELECT * FROM products WHERE name ILIKE \'%$1%\'', calls: 1, duration: 810 }
+    ],
+    ai_insight: 'Critical: Full table scan triggered by ILIKE with leading wildcard. Implement Full-Text Search (tsvector).'
   }
 ];
+
+// --- AUTHENTICATION & USER MANAGEMENT HOOK ---
+const useMockAuth = () => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Mock Database of Users
+  const [allUsers, setAllUsers] = useState([
+    { 
+      id: 1, 
+      email: 'admin', 
+      name: 'System Administrator', 
+      role: 'Super Admin', 
+      accessLevel: 'write',
+      // Admin sees everything including the special 'admin' tab
+      allowedScreens: ['overview', 'performance', 'resources', 'reliability', 'indexes', 'api', 'admin'] 
+    },
+    { 
+      id: 2, 
+      email: 'analyst@sys.local', 
+      name: 'Data Analyst', 
+      role: 'User', 
+      accessLevel: 'read',
+      allowedScreens: ['overview', 'performance', 'api'] 
+    }
+  ]);
+
+  useEffect(() => {
+    // Check persistent session
+    const storedUser = localStorage.getItem('pg_monitor_user');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
+  }, []);
+
+  const login = async (loginId, password) => {
+    setLoading(true);
+    setError(null);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // 1. Check Hardcoded Admin
+        if (loginId === 'admin' && password === 'admin') {
+           const admin = allUsers.find(u => u.email === 'admin');
+           setCurrentUser(admin);
+           localStorage.setItem('pg_monitor_user', JSON.stringify(admin));
+           setLoading(false);
+           resolve(true);
+           return;
+        }
+
+        // 2. Check Mock Database
+        const foundUser = allUsers.find(u => u.email === loginId);
+        
+        // Simple password check (in real app, use hashing)
+        // For this mock, we accept any password > 3 chars if user exists.
+        if (foundUser && password.length >= 4) { 
+           setCurrentUser(foundUser);
+           localStorage.setItem('pg_monitor_user', JSON.stringify(foundUser));
+           setLoading(false);
+           resolve(true);
+           return;
+        }
+
+        // 3. Fallback / Error
+        setError('Invalid credentials or access denied.');
+        setLoading(false);
+        resolve(false);
+      }, 1000); 
+    });
+  };
+
+  const googleLogin = async () => {
+    setLoading(true);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const googleUser = { 
+            id: 999,
+            email: 'google_user@gmail.com', 
+            name: 'Google User', 
+            role: 'Viewer', 
+            accessLevel: 'read',
+            allowedScreens: ['overview', 'resources'] // Restricted view for external login
+        };
+        setCurrentUser(googleUser);
+        localStorage.setItem('pg_monitor_user', JSON.stringify(googleUser));
+        setLoading(false);
+        resolve(true);
+      }, 1500);
+    });
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('pg_monitor_user');
+  };
+
+  // User Creation Function
+  const createUser = (newUser) => {
+      setAllUsers(prev => [...prev, { ...newUser, id: prev.length + 10 }]);
+  };
+
+  return { currentUser, loading, error, login, googleLogin, logout, allUsers, createUser };
+};
 
 // --- GLOBAL SVG FILTERS ---
 const ChartDefs = () => (
@@ -269,7 +336,6 @@ const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ position: 'relative' }}>
             <Mail size={16} color={THEME.textMuted} style={{ position: 'absolute', left: 14, top: 14 }} />
-            {/* CHANGED to type="text" to allow 'admin' without @ symbol */}
             <input 
               type="text" 
               placeholder="Email or Login ID" 
@@ -534,17 +600,168 @@ const EmptyState = ({ icon: Icon, text }) => (
   </div>
 );
 
+// --- TAB COMPONENT: USER MANAGEMENT (ADMIN) ---
+const UserManagementTab = ({ users, onCreateUser }) => {
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        accessLevel: 'read', // 'read' or 'write'
+        allowedScreens: {
+            overview: true,
+            performance: false,
+            resources: false,
+            reliability: false,
+            indexes: false,
+            api: false
+        }
+    });
+
+    const handleScreenChange = (screen) => {
+        setFormData(prev => ({
+            ...prev,
+            allowedScreens: { ...prev.allowedScreens, [screen]: !prev.allowedScreens[screen] }
+        }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        // Convert screen object to array of strings
+        const screenArray = Object.keys(formData.allowedScreens).filter(key => formData.allowedScreens[key]);
+        
+        onCreateUser({
+            name: formData.name,
+            email: formData.email,
+            role: 'User',
+            accessLevel: formData.accessLevel,
+            allowedScreens: screenArray
+        });
+        
+        // Reset form
+        setFormData({
+            name: '', email: '', password: '', accessLevel: 'read',
+            allowedScreens: { overview: true, performance: false, resources: false, reliability: false, indexes: false, api: false }
+        });
+        alert("User Created Successfully!");
+    };
+
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 24, height: 'calc(100vh - 140px)' }}>
+            
+            {/* LEFT: CREATE USER FORM */}
+            <GlassCard title="Create New User" rightNode={<UserPlus size={16} color={THEME.success} />}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Full Name</label>
+                        <input 
+                            required type="text" placeholder="John Doe"
+                            value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+                            style={{ width: '100%', padding: 10, background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 6, color: 'white', outline: 'none' }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Login ID / Email</label>
+                        <input 
+                            required type="text" placeholder="john.d"
+                            value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
+                            style={{ width: '100%', padding: 10, background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 6, color: 'white', outline: 'none' }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Access Level</label>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                            <button 
+                                type="button"
+                                onClick={() => setFormData({...formData, accessLevel: 'read'})}
+                                style={{ flex: 1, padding: 10, borderRadius: 6, border: `1px solid ${formData.accessLevel === 'read' ? THEME.primary : THEME.grid}`, background: formData.accessLevel === 'read' ? 'rgba(14, 165, 233, 0.2)' : 'transparent', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            >
+                                <Eye size={14} /> Read Only
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => setFormData({...formData, accessLevel: 'write'})}
+                                style={{ flex: 1, padding: 10, borderRadius: 6, border: `1px solid ${formData.accessLevel === 'write' ? THEME.success : THEME.grid}`, background: formData.accessLevel === 'write' ? 'rgba(16, 185, 129, 0.2)' : 'transparent', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                            >
+                                <Edit3 size={14} /> Read & Write
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>Allowed Screen Access</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            {Object.keys(formData.allowedScreens).map(key => (
+                                <div 
+                                    key={key} 
+                                    onClick={() => handleScreenChange(key)}
+                                    style={{ 
+                                        padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
+                                        border: `1px solid ${formData.allowedScreens[key] ? THEME.secondary : THEME.grid}`,
+                                        background: formData.allowedScreens[key] ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                                        display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'white', textTransform: 'capitalize'
+                                    }}
+                                >
+                                    <div style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${THEME.textMuted}`, background: formData.allowedScreens[key] ? THEME.secondary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {formData.allowedScreens[key] && <CheckCircle size={10} color="white" />}
+                                    </div>
+                                    {key}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button type="submit" style={{ marginTop: 10, padding: 12, background: THEME.primary, border: 'none', borderRadius: 8, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
+                        Create User
+                    </button>
+                </form>
+            </GlassCard>
+
+            {/* RIGHT: USER LIST */}
+            <GlassCard title="Active Users" rightNode={<Settings size={16} color={THEME.textMuted} />}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', height: '100%', paddingRight: 4 }}>
+                    {users.map((u) => (
+                        <div key={u.id} style={{ padding: 16, background: 'rgba(255,255,255,0.03)', border: `1px solid ${THEME.grid}`, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <div style={{ fontWeight: 'bold', fontSize: 14, color: 'white' }}>{u.name}</div>
+                                <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>{u.email}</div>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: u.accessLevel === 'write' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(14, 165, 233, 0.2)', color: u.accessLevel === 'write' ? THEME.success : THEME.primary, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                        {u.accessLevel === 'write' ? 'Read & Write' : 'Read Only'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style={{ textAlign: 'right', maxWidth: 150 }}>
+                                <div style={{ fontSize: 10, color: THEME.textMuted, marginBottom: 4 }}>ACCESS</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end' }}>
+                                    {u.allowedScreens.slice(0, 4).map(screen => (
+                                        <div key={screen} style={{ width: 6, height: 6, borderRadius: '50%', background: THEME.secondary, title: screen }} />
+                                    ))}
+                                    {u.allowedScreens.length > 4 && <span style={{ fontSize: 8, color: THEME.textMuted }}>+{u.allowedScreens.length - 4}</span>}
+                                </div>
+                                <div style={{ fontSize: 10, color: THEME.textMuted, marginTop: 4 }}>
+                                    {u.allowedScreens.length} Screens
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </GlassCard>
+        </div>
+    );
+};
+
 // --- MAIN DASHBOARD COMPONENT ---
-const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
+const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
   
+  // Tab-Specific States
   const [indexViewMode, setIndexViewMode] = useState(null); 
   const [selectedIndexItem, setSelectedIndexItem] = useState(null); 
   const [reliabilityViewMode, setReliabilityViewMode] = useState(null); 
   const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
-  const [selectedApiItem, setSelectedApiItem] = useState(null);
+  const [selectedApiItem, setSelectedApiItem] = useState(null); 
 
+  // Data States
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
     selectPerSec: 1245, insertPerSec: 342, updatePerSec: 198, deletePerSec: 62,
@@ -619,6 +836,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
 
   const formatUptime = seconds => `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 
+  // --- TAB DEFINITIONS ---
   const ApiQueriesTab = () => (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 24, height: 'calc(100vh - 140px)', animation: 'fadeIn 0.5s ease' }}>
         <GlassCard title="API Endpoints" rightNode={<Network size={16} color={THEME.textMuted} />}>
@@ -1197,6 +1415,26 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
     );
   }
 
+  // --- TAB DETERMINATION LOGIC ---
+  const availableTabs = [
+    { id: 'overview', label: 'Overview', icon: Activity },
+    { id: 'performance', label: 'Performance', icon: Zap },
+    { id: 'resources', label: 'Resources', icon: HardDrive },
+    { id: 'reliability', label: 'Reliability', icon: CheckCircle },
+    { id: 'indexes', label: 'Indexes', icon: Layers },
+    { id: 'api', label: 'API Tracing', icon: Network },
+    { id: 'admin', label: 'System Admin', icon: Shield }
+  ].filter(tab => currentUser?.allowedScreens?.includes(tab.id));
+
+  // Ensure active tab is valid for current user
+  const [activeTab, setActiveTab] = useState(availableTabs[0]?.id || 'overview');
+  useEffect(() => {
+    if (!availableTabs.find(t => t.id === activeTab)) {
+        setActiveTab(availableTabs[0]?.id || 'overview');
+    }
+  }, [currentUser]);
+
+
   return (
     <>
       <style>
@@ -1258,14 +1496,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '16px 8px' }}>
-             {[
-               { id: 'overview', label: 'Overview', icon: Activity },
-               { id: 'performance', label: 'Performance', icon: Zap },
-               { id: 'resources', label: 'Resources', icon: HardDrive },
-               { id: 'reliability', label: 'Reliability', icon: CheckCircle },
-               { id: 'indexes', label: 'Indexes', icon: Layers },
-               { id: 'api', label: 'API Tracing', icon: Network },
-             ].map(item => (
+             {availableTabs.map(item => (
                <button
                  key={item.id}
                  onClick={() => { setActiveTab(item.id); setIndexViewMode(null); setReliabilityViewMode(null); }}
@@ -1304,6 +1535,9 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
                 <div style={{ padding: '0 24px 24px' }}>
                     <div style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>Uptime: {formatUptime(metrics.uptime)}</div>
                     <div style={{ fontSize: 10, color: THEME.textMuted, marginTop: 4 }}>User: {currentUser?.name}</div>
+                    <div style={{ fontSize: 10, color: currentUser?.accessLevel === 'write' ? THEME.success : THEME.warning }}>
+                        {currentUser?.accessLevel === 'write' ? '• Read & Write' : '• Read Only'}
+                    </div>
                 </div>
              )}
           </div>
@@ -1313,7 +1547,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <header style={{ height: 70, borderBottom: `1px solid ${THEME.grid}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', background: 'rgba(2, 6, 23, 0.8)', backdropFilter: 'blur(10px)' }}>
             <h1 style={{ fontSize: 20, fontWeight: 600, color: THEME.textMain, letterSpacing: '-0.5px' }}>
-              {activeTab === 'api' ? 'API Tracing' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Dashboard
+              {activeTab === 'api' ? 'API Tracing' : activeTab === 'admin' ? 'System Administration' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Dashboard
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                <div style={{ display: 'flex', gap: 8 }}>
@@ -1339,6 +1573,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
                {activeTab === 'reliability' && <ReliabilityTab />}
                {activeTab === 'indexes' && <IndexesTab />}
                {activeTab === 'api' && <ApiQueriesTab />}
+               {activeTab === 'admin' && <UserManagementTab users={allUsers} onCreateUser={onCreateUser} />}
             </div>
           </div>
         </main>
@@ -1349,9 +1584,9 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
 
 // --- APP WRAPPER ---
 const App = () => {
-    const { user, loading, error, login, googleLogin, logout } = useMockAuth();
+    const { currentUser, loading, error, login, googleLogin, logout, allUsers, createUser } = useMockAuth();
 
-    if (loading && !user) {
+    if (loading && !currentUser) {
         return (
             <div style={{ height: '100vh', width: '100vw', background: THEME.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ width: 40, height: 40, border: `3px solid ${THEME.primary}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
@@ -1360,11 +1595,11 @@ const App = () => {
         );
     }
 
-    if (!user) {
+    if (!currentUser) {
         return <LoginPage onLogin={login} onGoogleLogin={googleLogin} loading={loading} error={error} />;
     }
 
-    return <PostgreSQLMonitor currentUser={user} onLogout={logout} />;
+    return <PostgreSQLMonitor currentUser={currentUser} onLogout={logout} allUsers={allUsers} onCreateUser={createUser} />;
 };
 
 export default App;
