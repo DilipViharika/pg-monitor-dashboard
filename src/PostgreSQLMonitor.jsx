@@ -46,24 +46,25 @@ const mockErrorLogs = [
   { id: 105, type: 'Constraint Violation', timestamp: '11:20:12', user: 'api_write', db: 'production', query: 'INSERT INTO users (email) VALUES...', detail: 'Key (email)=(test@example.com) already exists' },
 ];
 
+// --- FIXED DATA: Added 'recommendation' fields so AI Agent works correctly ---
 const missingIndexesData = [
-  { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%' },
-  { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%' },
-  { id: 3, table: 'audit_logs', column: 'user_id', impact: 'Medium', scans: '420k', improvement: '75%' },
-  { id: 4, table: 'products', column: 'category_id', impact: 'High', scans: '310k', improvement: '88%' },
+  { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%', recommendation: 'Create B-Tree index concurrently on customer_id. Estimated creation time: 4s.' },
+  { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%', recommendation: 'BRIN index recommended for time-series data on created_at to save space.' },
+  { id: 3, table: 'audit_logs', column: 'user_id', impact: 'Medium', scans: '420k', improvement: '75%', recommendation: 'Standard index recommended. High read volume detected on user dashboard.' },
+  { id: 4, table: 'products', column: 'category_id', impact: 'High', scans: '310k', improvement: '88%', recommendation: 'Foreign key column missing index. Essential for join performance.' },
 ];
 
 const unusedIndexesData = [
-  { id: 1, table: 'users', indexName: 'idx_users_last_login_old', size: '450MB', lastUsed: '2023-11-04' },
-  { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never' },
-  { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15' },
-  { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20' },
+  { id: 1, table: 'users', indexName: 'idx_users_last_login_old', size: '450MB', lastUsed: '2023-11-04', recommendation: 'Safe to drop. Index has not been accessed in over 90 days.' },
+  { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never', recommendation: 'High Impact: Drop immediately. 1.2GB of wasted storage and write overhead.' },
+  { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15', recommendation: 'Monitor for 2 more weeks. Low usage pattern detected.' },
+  { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20', recommendation: 'Consider partial index instead of full composite index to reduce bloat.' },
 ];
 
 const lowHitRatioData = [
-  { id: 1, table: 'large_audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM large_audit_logs WHERE event_data LIKE '%error%'", recommendation: 'Leading wildcard forces Seq Scan. Use Trigram Index.' },
-  { id: 2, table: 'payment_history', ratio: 45, total_scans: '890k', problem_query: "SELECT sum(amt) FROM payment_history WHERE created_at::date = now()::date", recommendation: 'Casting prevents index usage. Use WHERE created_at >= ...' },
-  { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected. Run VACUUM ANALYZE.' },
+  { id: 1, table: 'large_audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM large_audit_logs WHERE event_data LIKE '%error%'", recommendation: 'Leading wildcard forces Seq Scan. Use Trigram Index (pg_trgm).' },
+  { id: 2, table: 'payment_history', ratio: 45, total_scans: '890k', problem_query: "SELECT sum(amt) FROM payment_history WHERE created_at::date = now()::date", recommendation: 'Casting prevents index usage. Use WHERE created_at >= current_date.' },
+  { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected (45%). Run VACUUM ANALYZE immediately.' },
 ];
 
 const apiQueryData = [
@@ -179,7 +180,6 @@ const useMockAuth = () => {
         const foundUser = allUsers.find(u => u.email === loginId);
         
         // Simple password check (in real app, use hashing)
-        // For this mock, we accept any password > 3 chars if user exists.
         if (foundUser && password.length >= 4) { 
            setCurrentUser(foundUser);
            localStorage.setItem('pg_monitor_user', JSON.stringify(foundUser));
@@ -659,6 +659,7 @@ const ResourceGauge = ({ label, value, color }) => {
   );
 };
 
+// --- AI AGENT COMPONENT: DEBUGGED TO SHOW SUGGESTIONS ---
 const AIAgentView = ({ type, data }) => {
   if (!data) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
@@ -679,7 +680,8 @@ const AIAgentView = ({ type, data }) => {
           <span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span>
         </div>
         <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>
-          {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
+            {/* Logic fixed: checks for ai_insight (API) OR recommendation (Indexes) */}
+            {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
         </p>
       </div>
 
@@ -1406,13 +1408,14 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) =>
     );
   };
 
+  // --- INDEXES TAB: DEBUGGED ---
   const IndexesTab = () => {
     const renderIndexDetailList = () => {
         let data = [];
         if (indexViewMode === 'missing') data = missingIndexesData;
         else if (indexViewMode === 'unused') data = unusedIndexesData;
         else if (indexViewMode === 'hitRatio') data = lowHitRatioData;
-     
+      
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
             {data.map((item) => (
@@ -1529,6 +1532,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) =>
                     {renderIndexDetailList()}
                 </GlassCard>
 
+                {/* AI AGENT INTEGRATION */}
                 <GlassCard title="AI Optimization Agent" rightNode={<Cpu size={16} color={THEME.ai} />}>
                     <AIAgentView type={indexViewMode} data={selectedIndexItem} />
                 </GlassCard>
