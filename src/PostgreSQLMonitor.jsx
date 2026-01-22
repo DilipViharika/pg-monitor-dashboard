@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Activity, Database, HardDrive, Zap, Clock, AlertTriangle,
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
-  XCircle, Search, Cpu, Layers, Terminal, PlusCircle, Trash2,
-  Power, RefreshCw, ChevronLeft, ChevronRight, User as UserIcon, Globe,
-  Menu, Code, FileText, Network, ArrowRight
+  XCircle, Search, Cpu, Layers, Terminal, Power, RefreshCw, 
+  ChevronLeft, ChevronRight, User as UserIcon, Globe, Network, 
+  LogOut, Shield, Key, Mail, Chrome
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -28,7 +28,67 @@ const THEME = {
   ai: '#a855f7' // Purple for AI
 };
 
-// --- MOCK DATA ---
+// --- AUTHENTICATION HOOK (Advanced/Robust) ---
+// Simulates a secure backend interaction
+const useMockAuth = () => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    // Check local storage for persistent session simulation
+    const storedUser = localStorage.getItem('pg_monitor_user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
+  }, []);
+
+  const login = async (email, password) => {
+    setLoading(true);
+    setError(null);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // Simulating basic validation constraints
+        if (!email.includes('@') || password.length < 6) {
+          setError('Invalid credentials format.');
+          setLoading(false);
+          resolve(false);
+          return;
+        }
+        
+        // Simulating "Upsert" (Login or Auto-Create)
+        const userData = { email, name: email.split('@')[0], role: 'Admin', avatar: null };
+        setUser(userData);
+        localStorage.setItem('pg_monitor_user', JSON.stringify(userData));
+        setLoading(false);
+        resolve(true);
+      }, 1500); // Fake network delay
+    });
+  };
+
+  const googleLogin = async () => {
+    setLoading(true);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const userData = { email: 'google_user@gmail.com', name: 'Google User', role: 'Viewer', avatar: 'G' };
+        setUser(userData);
+        localStorage.setItem('pg_monitor_user', JSON.stringify(userData));
+        setLoading(false);
+        resolve(true);
+      }, 2000);
+    });
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('pg_monitor_user');
+  };
+
+  return { user, loading, error, login, googleLogin, logout };
+};
+
+// --- MOCK DATA (Existing) ---
 const mockConnections = [
   { pid: 14023, user: 'postgres', db: 'production', app: 'pgAdmin 4', state: 'active', duration: '00:00:04', query: 'SELECT * FROM pg_stat_activity WHERE state = \'active\';', ip: '192.168.1.5' },
   { pid: 14099, user: 'app_user', db: 'production', app: 'NodeJS Backend', state: 'idle in transaction', duration: '00:15:23', query: 'UPDATE orders SET status = \'processing\' WHERE id = 4591;', ip: '10.0.0.12' },
@@ -66,7 +126,6 @@ const lowHitRatioData = [
   { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected. Run VACUUM ANALYZE.' },
 ];
 
-// --- NEW DATA: API to SQL MAPPING ---
 const apiQueryData = [
   { 
     id: 'api_1', 
@@ -151,6 +210,160 @@ const ChartDefs = () => (
     </defs>
   </svg>
 );
+
+// --- VISUALIZATION: LOGIN BACKGROUND ---
+const LoginBackground = () => {
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    // Seed data
+    const initialData = Array.from({ length: 40 }, (_, i) => ({ i, v1: 20 + Math.random() * 30, v2: 10 + Math.random() * 20 }));
+    setData(initialData);
+
+    const interval = setInterval(() => {
+      setData(prev => {
+        const newData = [...prev.slice(1), { i: prev[prev.length - 1].i + 1, v1: 20 + Math.random() * 30, v2: 10 + Math.random() * 20 }];
+        return newData;
+      });
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.2, pointerEvents: 'none', overflow: 'hidden' }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data}>
+          <ChartDefs />
+          <Area type="monotone" dataKey="v1" stroke={THEME.primary} fill="url(#primaryGradient)" strokeWidth={2} isAnimationActive={false} />
+          <Area type="monotone" dataKey="v2" stroke={THEME.secondary} fill="url(#barGradient)" strokeWidth={2} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 0%, #020617 80%)' }} />
+    </div>
+  );
+};
+
+// --- LOGIN PAGE COMPONENT ---
+const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onLogin(email, password);
+  };
+
+  return (
+    <div style={{ 
+      height: '100vh', width: '100vw', background: THEME.bg, display: 'flex', 
+      alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' 
+    }}>
+      <LoginBackground />
+      
+      <div style={{ 
+        width: 400, zIndex: 10, padding: 40, borderRadius: 24, 
+        background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(20px)',
+        border: `1px solid ${THEME.glassBorder}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+        animation: 'fadeIn 0.8s ease-out'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ 
+            width: 60, height: 60, borderRadius: 16, margin: '0 auto 16px',
+            background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 0 20px ${THEME.primary}60`
+          }}>
+            <Database color="#fff" size={32} />
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: THEME.textMain, margin: 0 }}>PG Monitor</h1>
+          <p style={{ color: THEME.textMuted, fontSize: 13, marginTop: 8 }}>Secure Database Intelligence</p>
+        </div>
+
+        {error && (
+          <div style={{ 
+            background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, 
+            color: '#fca5a5', padding: 12, borderRadius: 8, fontSize: 12, marginBottom: 20,
+            display: 'flex', alignItems: 'center', gap: 8 
+          }}>
+            <AlertCircle size={14} /> {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ position: 'relative' }}>
+            <Mail size={16} color={THEME.textMuted} style={{ position: 'absolute', left: 14, top: 14 }} />
+            <input 
+              type="email" placeholder="Email Address" required
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              style={{ 
+                width: '100%', background: 'rgba(2, 6, 23, 0.5)', border: `1px solid ${THEME.grid}`,
+                padding: '12px 12px 12px 42px', borderRadius: 8, color: '#fff', fontSize: 14, outline: 'none',
+                transition: 'border 0.2s'
+              }}
+              onFocus={(e) => e.target.style.borderColor = THEME.primary}
+              onBlur={(e) => e.target.style.borderColor = THEME.grid}
+            />
+          </div>
+          <div style={{ position: 'relative' }}>
+            <Key size={16} color={THEME.textMuted} style={{ position: 'absolute', left: 14, top: 14 }} />
+            <input 
+              type="password" placeholder="Password" required minLength={6}
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              style={{ 
+                width: '100%', background: 'rgba(2, 6, 23, 0.5)', border: `1px solid ${THEME.grid}`,
+                padding: '12px 12px 12px 42px', borderRadius: 8, color: '#fff', fontSize: 14, outline: 'none'
+              }}
+              onFocus={(e) => e.target.style.borderColor = THEME.primary}
+              onBlur={(e) => e.target.style.borderColor = THEME.grid}
+            />
+          </div>
+
+          <button 
+            type="submit" disabled={loading}
+            style={{ 
+              background: `linear-gradient(90deg, ${THEME.primary}, ${THEME.secondary})`,
+              border: 'none', padding: 14, borderRadius: 8, color: '#fff', fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 8,
+              opacity: loading ? 0.7 : 1, transition: 'transform 0.1s'
+            }}
+            onMouseDown={(e) => !loading && (e.target.style.transform = 'scale(0.98)')}
+            onMouseUp={(e) => !loading && (e.target.style.transform = 'scale(1)')}
+          >
+            {loading ? 'Authenticating...' : 'Sign In / Create Account'}
+          </button>
+        </form>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
+          <div style={{ flex: 1, height: 1, background: THEME.grid }} />
+          <span style={{ color: THEME.textMuted, fontSize: 11 }}>OR CONTINUE WITH</span>
+          <div style={{ flex: 1, height: 1, background: THEME.grid }} />
+        </div>
+
+        <button 
+          onClick={onGoogleLogin} disabled={loading}
+          style={{ 
+            width: '100%', background: 'white', border: 'none', padding: 12, borderRadius: 8,
+            color: '#1e293b', fontWeight: 600, cursor: 'pointer', fontSize: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            opacity: loading ? 0.7 : 1
+          }}
+        >
+          <Chrome size={18} fill="#1e293b" />
+          Google
+        </button>
+
+        <div style={{ marginTop: 24, display: 'flex', justifyContent: 'center', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: THEME.success }}>
+            <Shield size={12} /> Secure Connection
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: THEME.textMuted }}>
+            <Lock size={12} /> End-to-End Encrypted
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // --- REUSABLE COMPONENTS ---
 const GlassCard = ({ children, title, rightNode, style }) => (
@@ -341,7 +554,7 @@ const EmptyState = ({ icon: Icon, text }) => (
 );
 
 // --- MAIN DASHBOARD COMPONENT ---
-const PostgreSQLMonitor = () => {
+const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -821,8 +1034,8 @@ const PostgreSQLMonitor = () => {
               }
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 8px 8px', fontSize: 10, color: THEME.textMuted, fontWeight: 600 }}>
-                 <span>{reliabilityViewMode === 'errors' ? 'TYPE / TIME' : 'PID / APP'}</span>
-                 <span>{reliabilityViewMode === 'errors' ? 'USER' : 'DURATION'}</span>
+                  <span>{reliabilityViewMode === 'errors' ? 'TYPE / TIME' : 'PID / APP'}</span>
+                  <span>{reliabilityViewMode === 'errors' ? 'USER' : 'DURATION'}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', height: '100%', paddingRight: 4 }}>
                 {getListItems().map(item => (
@@ -867,8 +1080,8 @@ const PostgreSQLMonitor = () => {
 
             <GlassCard title="Inspector Details" rightNode={<RefreshCw size={14} color={THEME.textMuted} style={{ cursor: 'pointer' }} />}>
               {reliabilityViewMode === 'errors' 
-                 ? <ErrorDetailPanel data={selectedReliabilityItem} />
-                 : <ConnectionDetailPanel data={selectedReliabilityItem} />
+                  ? <ErrorDetailPanel data={selectedReliabilityItem} />
+                  : <ConnectionDetailPanel data={selectedReliabilityItem} />
               }
             </GlassCard>
           </div>
@@ -1076,7 +1289,7 @@ const PostgreSQLMonitor = () => {
                { id: 'resources', label: 'Resources', icon: HardDrive },
                { id: 'reliability', label: 'Reliability', icon: CheckCircle },
                { id: 'indexes', label: 'Indexes', icon: Layers },
-               { id: 'api', label: 'API Tracing', icon: Network }, // ADDED NEW SECTION
+               { id: 'api', label: 'API Tracing', icon: Network },
              ].map(item => (
                <button
                  key={item.id}
@@ -1098,12 +1311,26 @@ const PostgreSQLMonitor = () => {
              ))}
           </div>
           
-          <div style={{ marginTop: 'auto', padding: 24, borderTop: `1px solid ${THEME.grid}`, display: isSidebarOpen ? 'block' : 'none' }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: THEME.success }}>
-                <span style={{ width: 8, height: 8, background: THEME.success, borderRadius: '50%', boxShadow: `0 0 10px ${THEME.success}` }} />
-                System Healthy
-             </div>
-             <div style={{ fontSize: 11, color: THEME.textMuted, marginTop: 4, fontFamily: 'monospace' }}>Uptime: {formatUptime(metrics.uptime)}</div>
+          <div style={{ marginTop: 'auto', borderTop: `1px solid ${THEME.grid}` }}>
+             <button 
+                onClick={onLogout}
+                style={{ 
+                    width: '100%',
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '24px', 
+                    background: 'transparent', border: 'none', 
+                    color: THEME.textMuted, cursor: 'pointer',
+                    justifyContent: isSidebarOpen ? 'flex-start' : 'center'
+                }}
+             >
+                <LogOut size={18} />
+                {isSidebarOpen && <span>Logout</span>}
+             </button>
+             {isSidebarOpen && (
+                <div style={{ padding: '0 24px 24px' }}>
+                    <div style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>Uptime: {formatUptime(metrics.uptime)}</div>
+                    <div style={{ fontSize: 10, color: THEME.textMuted, marginTop: 4 }}>User: {currentUser?.name}</div>
+                </div>
+             )}
           </div>
         </aside>
 
@@ -1136,7 +1363,7 @@ const PostgreSQLMonitor = () => {
                {activeTab === 'resources' && <ResourcesTab />}
                {activeTab === 'reliability' && <ReliabilityTab />}
                {activeTab === 'indexes' && <IndexesTab />}
-               {activeTab === 'api' && <ApiQueriesTab />} {/* NEW TAB RENDERED HERE */}
+               {activeTab === 'api' && <ApiQueriesTab />}
             </div>
           </div>
         </main>
@@ -1145,4 +1372,24 @@ const PostgreSQLMonitor = () => {
   );
 };
 
-export default PostgreSQLMonitor;
+// --- APP WRAPPER (Handling Logic Switch) ---
+const App = () => {
+    const { user, loading, error, login, googleLogin, logout } = useMockAuth();
+
+    if (loading && !user) {
+        return (
+            <div style={{ height: '100vh', width: '100vw', background: THEME.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 40, height: 40, border: `3px solid ${THEME.primary}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return <LoginPage onLogin={login} onGoogleLogin={googleLogin} loading={loading} error={error} />;
+    }
+
+    return <PostgreSQLMonitor currentUser={user} onLogout={logout} />;
+};
+
+export default App;
