@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
   XCircle, Search, Cpu, Layers, Terminal, PlusCircle, Trash2,
   Power, RefreshCw, ChevronLeft, ChevronRight, User as UserIcon, Globe,
-  Menu, Code, FileText
+  Menu, Code, FileText, Network, ArrowRight
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -60,12 +60,69 @@ const unusedIndexesData = [
   { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20' },
 ];
 
-// New Data for Low Hit Ratio Analysis
 const lowHitRatioData = [
-  { id: 1, table: 'large_audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM large_audit_logs WHERE event_data LIKE '%error%'", recommendation: 'Leading wildcard forces Seq Scan. Use Trigram Index or Full Text Search.' },
-  { id: 2, table: 'payment_history', ratio: 45, total_scans: '890k', problem_query: "SELECT sum(amt) FROM payment_history WHERE created_at::date = now()::date", recommendation: 'Casting on column prevents index use. Rewrite to range query: WHERE created_at >= ...' },
-  { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected. Index scan ineffective. Run VACUUM ANALYZE.' },
-  { id: 4, table: 'user_sessions', ratio: 55, total_scans: '320k', problem_query: "SELECT * FROM user_sessions WHERE active = false", recommendation: 'Low selectivity on boolean column. Partial index might help.' },
+  { id: 1, table: 'large_audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM large_audit_logs WHERE event_data LIKE '%error%'", recommendation: 'Leading wildcard forces Seq Scan. Use Trigram Index.' },
+  { id: 2, table: 'payment_history', ratio: 45, total_scans: '890k', problem_query: "SELECT sum(amt) FROM payment_history WHERE created_at::date = now()::date", recommendation: 'Casting prevents index usage. Use WHERE created_at >= ...' },
+  { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected. Run VACUUM ANALYZE.' },
+];
+
+// --- NEW DATA: API to SQL MAPPING ---
+const apiQueryData = [
+  { 
+    id: 'api_1', 
+    method: 'GET', 
+    endpoint: '/api/v1/dashboard/stats', 
+    avg_duration: 320, 
+    calls_per_min: 850,
+    db_time_pct: 85,
+    queries: [
+      { sql: 'SELECT count(*) FROM orders WHERE status = \'pending\'', calls: 1, duration: 120 },
+      { sql: 'SELECT sum(total) FROM payments WHERE created_at > NOW() - INTERVAL \'24h\'', calls: 1, duration: 145 },
+      { sql: 'SELECT * FROM notifications WHERE read = false LIMIT 5', calls: 1, duration: 15 }
+    ],
+    ai_insight: 'Heavy aggregation on payments table. Consider creating a materialized view for daily stats.'
+  },
+  { 
+    id: 'api_2', 
+    method: 'POST', 
+    endpoint: '/api/v1/orders/create', 
+    avg_duration: 180, 
+    calls_per_min: 120,
+    db_time_pct: 60,
+    queries: [
+      { sql: 'BEGIN TRANSACTION', calls: 1, duration: 2 },
+      { sql: 'SELECT stock FROM products WHERE id = $1 FOR UPDATE', calls: 5, duration: 45 },
+      { sql: 'INSERT INTO orders (...) VALUES (...)', calls: 1, duration: 12 },
+      { sql: 'UPDATE products SET stock = stock - 1 WHERE id = $1', calls: 5, duration: 55 },
+      { sql: 'COMMIT', calls: 1, duration: 5 }
+    ],
+    ai_insight: 'Detected N+1 Query issue. The product stock check runs 5 times in a loop. Batch these into a single query.'
+  },
+  { 
+    id: 'api_3', 
+    method: 'GET', 
+    endpoint: '/api/v1/users/profile', 
+    avg_duration: 45, 
+    calls_per_min: 2100,
+    db_time_pct: 30,
+    queries: [
+      { sql: 'SELECT * FROM users WHERE id = $1', calls: 1, duration: 5 },
+      { sql: 'SELECT * FROM permissions WHERE role_id = $1', calls: 1, duration: 4 }
+    ],
+    ai_insight: 'Highly optimized. Low database footprint. Cache hit ratio is excellent.'
+  },
+  { 
+    id: 'api_4', 
+    method: 'GET', 
+    endpoint: '/api/v1/search', 
+    avg_duration: 850, 
+    calls_per_min: 45,
+    db_time_pct: 95,
+    queries: [
+      { sql: 'SELECT * FROM products WHERE name ILIKE \'%$1%\'', calls: 1, duration: 810 }
+    ],
+    ai_insight: 'Critical: Full table scan triggered by ILIKE with leading wildcard. Implement Full-Text Search (tsvector).'
+  }
 ];
 
 // --- GLOBAL SVG FILTERS ---
@@ -219,14 +276,13 @@ const ResourceGauge = ({ label, value, color }) => {
   );
 };
 
-// --- DRILL DOWN SUB-COMPONENTS ---
 const AIAgentView = ({ type, data }) => {
   if (!data) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
       <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Terminal size={24} />
       </div>
-      <p style={{ fontSize: 13 }}>Select a table from the list<br/>to generate AI recommendations.</p>
+      <p style={{ fontSize: 13 }}>Select an item to analyze.</p>
     </div>
   );
 
@@ -240,23 +296,13 @@ const AIAgentView = ({ type, data }) => {
           <span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span>
         </div>
         <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>
-          {type === 'missing' && 
-            <>Table <strong>{data.table}</strong> is experiencing heavy sequential scans on column <strong>{data.column}</strong>. Creating an index will reduce I/O by approx <strong>{data.improvement}</strong>.</>
-          }
-          {type === 'unused' && 
-            <>Index <strong>{data.indexName}</strong> on table <strong>{data.table}</strong> represents <strong>{data.size}</strong> of wasted storage. It has not been used since <strong>{data.lastUsed}</strong>.</>
-          }
-          {type === 'hitRatio' && 
-            <>Table <strong>{data.table}</strong> has a critical hit ratio of <strong>{data.ratio}%</strong>. The query below is forcing sequential scans due to: <strong>{data.recommendation.split('.')[0]}</strong>.</>
-          }
+          {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
         </p>
       </div>
 
       <div style={{ flex: 1, background: '#0f172a', borderRadius: 12, border: `1px solid ${THEME.grid}`, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ background: '#1e293b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${THEME.grid}` }}>
-          <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>
-            {type === 'hitRatio' ? 'PROBLEM_QUERY.sql' : 'SUGGESTED_FIX.sql'}
-          </span>
+          <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>DETAILS.sql</span>
           <div style={{ display: 'flex', gap: 6 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></div>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div>
@@ -264,41 +310,22 @@ const AIAgentView = ({ type, data }) => {
           </div>
         </div>
         <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1, overflowY: 'auto' }}>
-          {type === 'missing' && (
-            <>
-              <span style={{ color: '#c084fc' }}>CREATE INDEX CONCURRENTLY</span> idx_{data.table}_{data.column}<br/>
-              <span style={{ color: '#c084fc' }}>ON</span> {data.table} ({data.column});
-            </>
-          )}
-          {type === 'unused' && (
-            <>
-              <span style={{ color: '#f43f5e' }}>DROP INDEX CONCURRENTLY</span> {data.indexName};
-            </>
-          )}
-          {type === 'hitRatio' && (
-            <>
-              <span style={{ color: '#64748b' }}>-- Problem Query:</span><br/>
-              {data.problem_query}<br/><br/>
-              <span style={{ color: '#64748b' }}>-- AI Recommendation:</span><br/>
-              <span style={{ color: THEME.success }}>{data.recommendation}</span>
-            </>
+          {type === 'api' ? (
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {data.queries.map((q, i) => (
+                   <div key={i} style={{ borderBottom: `1px solid ${THEME.grid}`, paddingBottom: 12, marginBottom: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: THEME.textMuted, fontSize: 11, marginBottom: 4 }}>
+                         <span>{q.calls} Executions</span>
+                         <span>{q.duration}ms</span>
+                      </div>
+                      <div style={{ color: '#fff' }}>{q.sql}</div>
+                   </div>
+                ))}
+             </div>
+          ) : (
+             <>{data.problem_query || "Query optimization suggested..."}</>
           )}
         </div>
-        
-        {type !== 'hitRatio' && (
-          <div style={{ padding: 16, borderTop: `1px solid ${THEME.grid}`, background: 'rgba(15, 23, 42, 0.5)' }}>
-             <button style={{ 
-               width: '100%', padding: '10px', borderRadius: 8, border: 'none', 
-               background: type === 'missing' ? THEME.success : THEME.danger, 
-               color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer',
-               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-               boxShadow: `0 0 15px ${type === 'missing' ? THEME.success : THEME.danger}40`
-             }}>
-               {type === 'missing' ? <PlusCircle size={14} /> : <Trash2 size={14} />}
-               {type === 'missing' ? 'APPLY INDEX' : 'DROP INDEX'}
-             </button>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -315,18 +342,17 @@ const EmptyState = ({ icon: Icon, text }) => (
 
 // --- MAIN DASHBOARD COMPONENT ---
 const PostgreSQLMonitor = () => {
-  // Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   
-  // --- LIFTED STATE FOR DRILL DOWNS ---
-  const [indexViewMode, setIndexViewMode] = useState(null); // 'missing' | 'unused' | 'hitRatio'
+  // Tab-Specific States
+  const [indexViewMode, setIndexViewMode] = useState(null); 
   const [selectedIndexItem, setSelectedIndexItem] = useState(null); 
-
   const [reliabilityViewMode, setReliabilityViewMode] = useState(null); 
   const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
+  const [selectedApiItem, setSelectedApiItem] = useState(null); // API Tab state
 
-  // --- DATA STATES ---
+  // Data States
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
     selectPerSec: 1245, insertPerSec: 342, updatePerSec: 198, deletePerSec: 62,
@@ -348,7 +374,6 @@ const PostgreSQLMonitor = () => {
   const [sparklineData, setSparklineData] = useState([]);
   const [recentAlerts, setRecentAlerts] = useState([]);
 
-  // Initialization
   useEffect(() => {
     setLast30Days(Array.from({ length: 30 }, (_, i) => ({
       date: new Date(new Date().setDate(new Date().getDate() - (29 - i))).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
@@ -385,7 +410,6 @@ const PostgreSQLMonitor = () => {
     setSparklineData(Array.from({ length: 20 }, () => ({ value: Math.random() * 100 })));
   }, []);
 
-  // Live Update Interval
   useEffect(() => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
@@ -397,13 +421,66 @@ const PostgreSQLMonitor = () => {
         diskIOReadRate: Math.floor(Math.random() * 100) + 200,
       }));
       setSparklineData(prev => [...prev.slice(1), { value: Math.random() * 100 }]);
-    }, 30000); 
+    }, 5000); 
     return () => clearInterval(interval);
   }, []);
 
   const formatUptime = seconds => `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 
   // --- TAB RENDERERS ---
+
+  const ApiQueriesTab = () => (
+    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 24, height: 'calc(100vh - 140px)', animation: 'fadeIn 0.5s ease' }}>
+        {/* Left: API List */}
+        <GlassCard title="API Endpoints" rightNode={<Network size={16} color={THEME.textMuted} />}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+                {apiQueryData.map(api => (
+                    <div
+                        key={api.id}
+                        onClick={() => setSelectedApiItem(api)}
+                        style={{
+                            padding: 16,
+                            borderRadius: 12,
+                            background: selectedApiItem?.id === api.id ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.03)',
+                            border: `1px solid ${selectedApiItem?.id === api.id ? THEME.primary : 'rgba(255,255,255,0.05)'}`,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ 
+                                    fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+                                    background: api.method === 'GET' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(249, 115, 22, 0.2)',
+                                    color: api.method === 'GET' ? THEME.success : THEME.warning
+                                }}>{api.method}</span>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: THEME.textMain }}>{api.endpoint}</span>
+                            </div>
+                            <span style={{ fontSize: 11, color: THEME.textMuted }}>{api.avg_duration}ms</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: THEME.textMuted }}>
+                            <span>{api.calls_per_min} rpm</span>
+                            <span style={{ color: api.db_time_pct > 80 ? THEME.danger : THEME.textMuted }}>{api.db_time_pct}% DB Time</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </GlassCard>
+
+        {/* Right: Drill Down + AI */}
+        {selectedApiItem ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, height: '100%' }}>
+                <GlassCard title="Query Analysis" rightNode={<Cpu size={16} color={THEME.ai} />}>
+                    <AIAgentView type="api" data={selectedApiItem} />
+                </GlassCard>
+            </div>
+        ) : (
+            <GlassCard title="Deep Dive" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <EmptyState icon={Network} text="Select an API endpoint to trace its SQL queries." />
+            </GlassCard>
+        )}
+    </div>
+  );
 
   const OverviewTab = () => (
     <>
@@ -499,7 +576,6 @@ const PostgreSQLMonitor = () => {
           </div>
         </GlassCard>
       </div>
-      
       <GlassCard title="Performance Trends (10 Days)">
          <ResponsiveContainer width="100%" height={280}>
             <LineChart data={last30Days.slice(-10)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -530,7 +606,6 @@ const PostgreSQLMonitor = () => {
            <ResourceGauge label={`${metrics.diskAvailable}GB Free`} value={metrics.diskUsed.toFixed(1)} color={THEME.warning} />
         </GlassCard>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 24 }}>
         <GlassCard title="Table Growth History">
           <ResponsiveContainer width="100%" height={300}>
@@ -547,7 +622,6 @@ const PostgreSQLMonitor = () => {
             </AreaChart>
           </ResponsiveContainer>
         </GlassCard>
-
         <GlassCard title="Disk I/O Operations">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {[
@@ -828,7 +902,6 @@ const PostgreSQLMonitor = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: THEME.textMain }}>{item.table}</span>
                   
-                  {/* CONDITIONAL BADGE */}
                   {indexViewMode === 'missing' && (
                     <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 700, background: item.impact === 'Critical' ? 'rgba(244,63,94,0.2)' : 'rgba(245,158,11,0.2)', color: item.impact === 'Critical' ? THEME.danger : THEME.warning }}>
                         {item.impact}
@@ -1003,6 +1076,7 @@ const PostgreSQLMonitor = () => {
                { id: 'resources', label: 'Resources', icon: HardDrive },
                { id: 'reliability', label: 'Reliability', icon: CheckCircle },
                { id: 'indexes', label: 'Indexes', icon: Layers },
+               { id: 'api', label: 'API Tracing', icon: Network }, // ADDED NEW SECTION
              ].map(item => (
                <button
                  key={item.id}
@@ -1037,7 +1111,7 @@ const PostgreSQLMonitor = () => {
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <header style={{ height: 70, borderBottom: `1px solid ${THEME.grid}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', background: 'rgba(2, 6, 23, 0.8)', backdropFilter: 'blur(10px)' }}>
             <h1 style={{ fontSize: 20, fontWeight: 600, color: THEME.textMain, letterSpacing: '-0.5px' }}>
-              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Dashboard
+              {activeTab === 'api' ? 'API Tracing' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Dashboard
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                <div style={{ display: 'flex', gap: 8 }}>
@@ -1062,6 +1136,7 @@ const PostgreSQLMonitor = () => {
                {activeTab === 'resources' && <ResourcesTab />}
                {activeTab === 'reliability' && <ReliabilityTab />}
                {activeTab === 'indexes' && <IndexesTab />}
+               {activeTab === 'api' && <ApiQueriesTab />} {/* NEW TAB RENDERED HERE */}
             </div>
           </div>
         </main>
