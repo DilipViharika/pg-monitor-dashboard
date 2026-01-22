@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Activity, Database, HardDrive, Zap, Clock, AlertTriangle,
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
-  XCircle, Search, Cpu, Layers, FileText
+  XCircle, Search, Cpu, Layers, Terminal, PlusCircle, Trash2
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -13,23 +13,23 @@ import {
 // --- THEME & CONSTANTS ---
 const THEME = {
   bg: '#020617', // Deep Ink Black
-  glass: 'rgba(15, 23, 42, 0.6)', // Glass panel background
-  glassBorder: 'rgba(56, 189, 248, 0.1)', // Subtle border
+  glass: 'rgba(15, 23, 42, 0.6)',
+  glassBorder: 'rgba(56, 189, 248, 0.1)',
   textMain: '#F8FAFC',
-  textMuted: '#64748B',
+  textMuted: '#94A3B8',
   primary: '#0EA5E9', // Sky Blue
   secondary: '#8B5CF6', // Violet
   success: '#10B981', // Emerald
   warning: '#F59E0B', // Amber
   danger: '#F43F5E', // Rose
-  grid: '#1E293B'
+  grid: '#1E293B',
+  ai: '#a855f7' // Purple for AI
 };
 
-// --- GLOBAL SVG FILTERS & GRADIENTS ---
+// --- GLOBAL SVG FILTERS ---
 const ChartDefs = () => (
   <svg style={{ height: 0, width: 0, position: 'absolute' }}>
     <defs>
-      {/* Neon Glow Filter */}
       <filter id="neonGlow" height="300%" width="300%" x="-75%" y="-75%">
         <feGaussianBlur stdDeviation="5" result="coloredBlur" />
         <feMerge>
@@ -38,7 +38,6 @@ const ChartDefs = () => (
         </feMerge>
       </filter>
 
-      {/* Gradients */}
       <linearGradient id="primaryGradient" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor={THEME.primary} stopOpacity={0.4} />
         <stop offset="100%" stopColor={THEME.primary} stopOpacity={0} />
@@ -57,7 +56,7 @@ const ChartDefs = () => (
   </svg>
 );
 
-// --- HELPER COMPONENTS ---
+// --- REUSABLE COMPONENTS ---
 
 const GlassCard = ({ children, title, rightNode, style }) => (
   <div
@@ -88,26 +87,34 @@ const GlassCard = ({ children, title, rightNode, style }) => (
   </div>
 );
 
-const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color = THEME.primary, sparkData }) => (
+const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color = THEME.primary, onClick, active, sparkData }) => (
   <div
+    onClick={onClick}
     style={{
-      background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%)',
+      background: active 
+        ? `linear-gradient(180deg, ${color}20 0%, ${color}10 100%)`
+        : 'linear-gradient(180deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%)',
       borderRadius: 12,
-      border: `1px solid ${THEME.glassBorder}`,
+      border: active ? `1px solid ${color}` : `1px solid ${THEME.glassBorder}`,
       padding: '20px',
       position: 'relative',
       overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'space-between',
-      gap: 12
+      gap: 12,
+      cursor: onClick ? 'pointer' : 'default',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transform: active ? 'translateY(-2px)' : 'none',
+      boxShadow: active ? `0 10px 25px -5px ${color}30` : 'none'
     }}
   >
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
       <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}15`, color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${color}30`, boxShadow: `0 0 15px ${color}20` }}>
         <Icon size={20} />
       </div>
-      {sparkData && (
+      {active && <div style={{ fontSize: 10, background: color, color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>SELECTED</div>}
+      {sparkData && !active && (
         <div style={{ width: 80, height: 40 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={sparkData}>
@@ -175,12 +182,82 @@ const ResourceGauge = ({ label, value, color }) => {
   );
 };
 
-// --- MAIN MONITOR COMPONENT ---
+// --- AI COMPONENT FOR INDEXES ---
+const AIAgentView = ({ type, data }) => {
+  if (!data) return (
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
+      <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Terminal size={24} />
+      </div>
+      <p style={{ fontSize: 13 }}>Select a table from the list<br/>to generate AI recommendations.</p>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
+      <div style={{ background: 'rgba(168, 85, 247, 0.1)', border: `1px solid ${THEME.ai}40`, borderRadius: 12, padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 24, height: 24, background: THEME.ai, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px ${THEME.ai}60` }}>
+            <Zap size={14} color="white" fill="white" />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span>
+        </div>
+        <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>
+          {type === 'missing' 
+            ? <>Table <strong>{data.table}</strong> is experiencing heavy sequential scans on column <strong>{data.column}</strong>. Creating an index will reduce I/O by approx <strong>{data.improvement}</strong>.</>
+            : <>Index <strong>{data.indexName}</strong> on table <strong>{data.table}</strong> represents <strong>{data.size}</strong> of wasted storage. It has not been used since <strong>{data.lastUsed}</strong>.</>
+          }
+        </p>
+      </div>
+
+      <div style={{ flex: 1, background: '#0f172a', borderRadius: 12, border: `1px solid ${THEME.grid}`, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: '#1e293b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${THEME.grid}` }}>
+          <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>SUGGESTED_FIX.sql</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></div>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }}></div>
+          </div>
+        </div>
+        <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1 }}>
+          {type === 'missing' ? (
+            <>
+              <span style={{ color: '#c084fc' }}>CREATE INDEX CONCURRENTLY</span> idx_{data.table}_{data.column}<br/>
+              <span style={{ color: '#c084fc' }}>ON</span> {data.table} ({data.column});
+            </>
+          ) : (
+            <>
+              <span style={{ color: '#f43f5e' }}>DROP INDEX CONCURRENTLY</span> {data.indexName};
+            </>
+          )}
+        </div>
+        <div style={{ padding: 16, borderTop: `1px solid ${THEME.grid}`, background: 'rgba(15, 23, 42, 0.5)' }}>
+           <button style={{ 
+             width: '100%', padding: '10px', borderRadius: 8, border: 'none', 
+             background: type === 'missing' ? THEME.success : THEME.danger, 
+             color: '#fff', fontWeight: 600, fontSize: 12, cursor: 'pointer',
+             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+             boxShadow: `0 0 15px ${type === 'missing' ? THEME.success : THEME.danger}40`
+           }}>
+             {type === 'missing' ? <PlusCircle size={14} /> : <Trash2 size={14} />}
+             {type === 'missing' ? 'APPLY INDEX' : 'DROP INDEX'}
+           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- MAIN DASHBOARD ---
 
 const PostgreSQLMonitor = () => {
   const [activeTab, setActiveTab] = useState('overview');
   
-  // Data State
+  // Index Interaction State
+  const [indexViewMode, setIndexViewMode] = useState(null); // 'missing', 'unused', or null
+  const [selectedItem, setSelectedItem] = useState(null); 
+
+  // --- STATE DATA ---
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
     selectPerSec: 1245, insertPerSec: 342, updatePerSec: 198, deletePerSec: 62,
@@ -200,10 +277,25 @@ const PostgreSQLMonitor = () => {
   const [tableGrowth, setTableGrowth] = useState([]);
   const [topErrors, setTopErrors] = useState([]);
   const [sparklineData, setSparklineData] = useState([]);
+  const [recentAlerts, setRecentAlerts] = useState([]);
+
+  // Mock Index Data
+  const missingIndexesData = [
+    { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%' },
+    { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%' },
+    { id: 3, table: 'audit_logs', column: 'user_id', impact: 'Medium', scans: '420k', improvement: '75%' },
+    { id: 4, table: 'products', column: 'category_id', impact: 'High', scans: '310k', improvement: '88%' },
+  ];
+
+  const unusedIndexesData = [
+    { id: 1, table: 'users', indexName: 'idx_users_last_login_old', size: '450MB', lastUsed: '2023-11-04' },
+    { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never' },
+    { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15' },
+    { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20' },
+  ];
 
   // Data Generation
   useEffect(() => {
-    // 30 Days Data
     setLast30Days(Array.from({ length: 30 }, (_, i) => ({
       date: new Date(new Date().setDate(new Date().getDate() - (29 - i))).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
       qps: Math.floor(Math.random() * 800) + 1200,
@@ -212,20 +304,17 @@ const PostgreSQLMonitor = () => {
       errors: Math.floor(Math.random() * 15)
     })));
 
-    // Distribution
     setQueryTimeDistribution([
       { range: '0-10ms', count: 45230 }, { range: '10-50ms', count: 18920 },
       { range: '50-100ms', count: 5430 }, { range: '100-500ms', count: 2120 },
       { range: '500ms-1s', count: 890 }, { range: '>1s', count: 310 }
     ]);
 
-    // Growth
     setTableGrowth(Array.from({ length: 12 }, (_, i) => ({
       month: new Date(new Date().setMonth(new Date().getMonth() - (11 - i))).toLocaleDateString('en-US', { month: 'short' }),
       orders: 150 + i * 10, customers: 80 + i * 5, products: 40 + i * 2, transactions: 200 + i * 15
     })));
 
-    // Top Errors
     setTopErrors([
       { type: 'Connection Timeout', count: 145, percentage: 38 },
       { type: 'Deadlock Detected', count: 89, percentage: 23 },
@@ -234,7 +323,11 @@ const PostgreSQLMonitor = () => {
       { type: 'Constraint Violation', count: 38, percentage: 10 }
     ]);
 
-    // Sparkline
+    setRecentAlerts([
+      { severity: 'critical', message: 'CPU usage exceeded 90%', time: '5m ago' },
+      { severity: 'warning', message: 'High slow queries detected', time: '12m ago' },
+    ]);
+
     setSparklineData(Array.from({ length: 20 }, () => ({ value: Math.random() * 100 })));
   }, []);
 
@@ -256,11 +349,10 @@ const PostgreSQLMonitor = () => {
 
   const formatUptime = seconds => `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 
-  // --- TAB CONTENT SECTIONS ---
+  // --- SECTIONS ---
 
   const OverviewTab = () => (
     <>
-      {/* Top Chart Section */}
       <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr', gap: 24, marginBottom: 24 }}>
         <GlassCard title="Cluster Activity (30 Days)">
           <ResponsiveContainer width="100%" height={320}>
@@ -284,7 +376,6 @@ const PostgreSQLMonitor = () => {
         </div>
       </div>
 
-      {/* Breakdown Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
         <GlassCard title="Operations Breakdown">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -451,7 +542,6 @@ const PostgreSQLMonitor = () => {
                  </div>
                  <NeonProgressBar value={metrics.idleConnections} max={metrics.maxConnections} color={THEME.textMuted} />
               </div>
-              
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
                  <div style={{ background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, padding: 12, borderRadius: 8, textAlign: 'center' }}>
                     <div style={{ fontSize: 20, fontWeight: 700, color: THEME.danger }}>{metrics.failedConnections}</div>
@@ -485,45 +575,135 @@ const PostgreSQLMonitor = () => {
     </>
   );
 
-  const IndexesTab = () => (
-    <>
-       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginBottom: 24 }}>
-         <MetricCard icon={TrendingUp} title="Index Hit Ratio" value={metrics.indexHitRatio.toFixed(1)} unit="%" color={THEME.success} />
-         <MetricCard icon={AlertTriangle} title="Missing Indexes" value={metrics.missingIndexes} color={THEME.warning} />
-         <MetricCard icon={AlertCircle} title="Unused Indexes" value={metrics.unusedIndexes} color={THEME.secondary} />
-       </div>
-
-       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
-          <GlassCard title="Scan vs Index Usage">
-             <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={[{ name: 'Stats', scan: metrics.tableScanRate, index: metrics.indexHitRatio }]} barSize={50}>
-                   <ChartDefs />
-                   <CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} />
-                   <YAxis tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} />
-                   <Tooltip content={<CustomTooltip />} />
-                   <Legend />
-                   <Bar dataKey="scan" name="Table Scan Rate" fill={THEME.warning} radius={[4, 4, 0, 0]} filter="url(#neonGlow)" />
-                   <Bar dataKey="index" name="Index Hit Ratio" fill={THEME.success} radius={[4, 4, 0, 0]} filter="url(#neonGlow)" />
-                </BarChart>
-             </ResponsiveContainer>
-          </GlassCard>
-
-          <GlassCard title="Fragmentation Status">
-             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center' }}>
-                <div style={{ width: 140, height: 140, borderRadius: '50%', border: `8px solid ${metrics.fragmentationLevel > 30 ? THEME.danger : THEME.success}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 30px ${metrics.fragmentationLevel > 30 ? THEME.danger : THEME.success}40` }}>
-                   <span style={{ fontSize: 32, fontWeight: 700, color: THEME.textMain, fontFamily: 'monospace' }}>{metrics.fragmentationLevel}%</span>
+  const IndexesTab = () => {
+    // Helper to render the list of tables/indexes in the drill-down
+    const renderIndexDetailList = () => {
+        const data = indexViewMode === 'missing' ? missingIndexesData : unusedIndexesData;
+        const isMissing = indexViewMode === 'missing';
+    
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
+            {data.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => setSelectedItem(item)}
+                style={{
+                  padding: 16,
+                  borderRadius: 12,
+                  background: selectedItem?.id === item.id ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${selectedItem?.id === item.id ? THEME.primary : 'rgba(255,255,255,0.05)'}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: THEME.textMain }}>{item.table}</span>
+                  <span style={{ 
+                    fontSize: 10, padding: '2px 8px', borderRadius: 99, fontWeight: 700,
+                    background: isMissing 
+                      ? (item.impact === 'Critical' ? 'rgba(244,63,94,0.2)' : 'rgba(245,158,11,0.2)')
+                      : 'rgba(148,163,184,0.2)',
+                    color: isMissing 
+                      ? (item.impact === 'Critical' ? THEME.danger : THEME.warning)
+                      : THEME.textMuted
+                  }}>
+                    {isMissing ? item.impact : item.size}
+                  </span>
                 </div>
-                <div style={{ marginTop: 24 }}>
-                   <h4 style={{ margin: 0, color: THEME.textMain }}>Table Fragmentation</h4>
-                   <p style={{ margin: '8px 0 0 0', fontSize: 12, color: THEME.textMuted, padding: '0 20px', lineHeight: 1.5 }}>
-                      {metrics.fragmentationLevel > 30 ? 'Critical levels detected. Schedule VACUUM FULL.' : 'Fragmentation within healthy operational limits.'}
-                   </p>
+                <div style={{ fontSize: 12, color: THEME.textMuted, fontFamily: 'monospace' }}>
+                  {isMissing ? `Column: ${item.column}` : item.indexName}
                 </div>
-             </div>
-          </GlassCard>
-       </div>
-    </>
-  );
+                {isMissing && (
+                   <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: THEME.textMuted }}>
+                     <TrendingUp size={12} color={THEME.danger} />
+                     <span>{item.scans} seq scans</span>
+                   </div>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      };
+
+    return (
+        <>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginBottom: 24 }}>
+            <MetricCard icon={TrendingUp} title="Index Hit Ratio" value={metrics.indexHitRatio.toFixed(1)} unit="%" color={THEME.success} />
+            
+            <MetricCard 
+                icon={AlertTriangle} 
+                title="Missing Indexes" 
+                value={metrics.missingIndexes} 
+                color={THEME.warning} 
+                active={indexViewMode === 'missing'}
+                onClick={() => {
+                    setIndexViewMode(indexViewMode === 'missing' ? null : 'missing');
+                    setSelectedItem(null);
+                }}
+                subtitle={indexViewMode === 'missing' ? "Click to close details" : "Click to view tables"}
+            />
+            
+            <MetricCard 
+                icon={Layers} 
+                title="Unused Indexes" 
+                value={metrics.unusedIndexes} 
+                color={THEME.danger} 
+                active={indexViewMode === 'unused'}
+                onClick={() => {
+                    setIndexViewMode(indexViewMode === 'unused' ? null : 'unused');
+                    setSelectedItem(null);
+                }}
+                subtitle={indexViewMode === 'unused' ? "Click to close details" : "Click to view candidates"}
+            />
+        </div>
+
+        {indexViewMode === null ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24, animation: 'fadeIn 0.5s ease' }}>
+                <GlassCard title="Scan vs Index Usage">
+                    <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={[{ name: 'Stats', scan: metrics.tableScanRate, index: metrics.indexHitRatio }]} barSize={50}>
+                            <ChartDefs />
+                            <CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} />
+                            <YAxis tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend />
+                            <Bar dataKey="scan" name="Table Scan Rate" fill={THEME.warning} radius={[4, 4, 0, 0]} filter="url(#neonGlow)" />
+                            <Bar dataKey="index" name="Index Hit Ratio" fill={THEME.success} radius={[4, 4, 0, 0]} filter="url(#neonGlow)" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </GlassCard>
+
+                <GlassCard title="Fragmentation Status">
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center' }}>
+                        <div style={{ width: 140, height: 140, borderRadius: '50%', border: `8px solid ${metrics.fragmentationLevel > 30 ? THEME.danger : THEME.success}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 30px ${metrics.fragmentationLevel > 30 ? THEME.danger : THEME.success}40` }}>
+                            <span style={{ fontSize: 32, fontWeight: 700, color: THEME.textMain, fontFamily: 'monospace' }}>{metrics.fragmentationLevel}%</span>
+                        </div>
+                        <div style={{ marginTop: 24 }}>
+                            <h4 style={{ margin: 0, color: THEME.textMain }}>Table Fragmentation</h4>
+                            <p style={{ margin: '8px 0 0 0', fontSize: 12, color: THEME.textMuted, padding: '0 20px', lineHeight: 1.5 }}>
+                            {metrics.fragmentationLevel > 30 ? 'Critical levels detected. Schedule VACUUM FULL.' : 'Fragmentation within healthy operational limits.'}
+                            </p>
+                        </div>
+                    </div>
+                </GlassCard>
+            </div>
+        ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 24, height: 400, animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                <GlassCard 
+                    title={indexViewMode === 'missing' ? "Tables needing indexes" : "Unused index candidates"} 
+                    rightNode={<div style={{ fontSize: 11, color: THEME.textMuted }}>{indexViewMode === 'missing' ? missingIndexesData.length : unusedIndexesData.length} Items</div>}
+                >
+                    {renderIndexDetailList()}
+                </GlassCard>
+
+                <GlassCard title="AI Optimization Agent" rightNode={<Cpu size={16} color={THEME.ai} />}>
+                    <AIAgentView type={indexViewMode} data={selectedItem} />
+                </GlassCard>
+            </div>
+        )}
+        </>
+    );
+  }
 
   return (
     <>
@@ -532,6 +712,8 @@ const PostgreSQLMonitor = () => {
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
           * { box-sizing: border-box; }
           body { margin: 0; background-color: ${THEME.bg}; color: ${THEME.textMain}; font-family: 'Inter', sans-serif; overflow: hidden; }
+          @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
           ::-webkit-scrollbar { width: 6px; }
           ::-webkit-scrollbar-track { background: transparent; }
           ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -562,7 +744,7 @@ const PostgreSQLMonitor = () => {
                ].map(item => (
                  <button
                    key={item.id}
-                   onClick={() => setActiveTab(item.id)}
+                   onClick={() => { setActiveTab(item.id); setIndexViewMode(null); }}
                    style={{
                      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
                      background: activeTab === item.id ? `linear-gradient(90deg, ${THEME.primary}20, transparent)` : 'transparent',
@@ -594,9 +776,13 @@ const PostgreSQLMonitor = () => {
               {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Dashboard
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-               <div style={{ padding: '6px 12px', borderRadius: 20, border: `1px solid ${THEME.warning}40`, background: `${THEME.warning}10`, color: THEME.warning, fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <AlertTriangle size={12} />
-                  <span>High Fragmentation</span>
+               <div style={{ display: 'flex', gap: 8 }}>
+                 {recentAlerts.map((alert, i) => (
+                    <div key={i} style={{ padding: '6px 12px', borderRadius: 20, border: `1px solid ${THEME.warning}40`, background: `${THEME.warning}10`, color: THEME.warning, fontSize: 11, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <AlertTriangle size={12} />
+                        <span>{alert.message}</span>
+                    </div>
+                 ))}
                </div>
                <div style={{ width: 36, height: 36, borderRadius: '50%', border: `1px solid ${THEME.grid}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Search size={16} color={THEME.textMuted} />
