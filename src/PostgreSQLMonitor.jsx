@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Activity, Database, HardDrive, Zap, Clock, AlertTriangle,
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
@@ -28,15 +28,13 @@ const THEME = {
   ai: '#a855f7' // Purple for AI
 };
 
-// --- AUTHENTICATION HOOK (Advanced/Robust) ---
-// Simulates a secure backend interaction
+// --- AUTHENTICATION HOOK (Updated for Admin Defaults) ---
 const useMockAuth = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check local storage for persistent session simulation
     const storedUser = localStorage.getItem('pg_monitor_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -44,26 +42,41 @@ const useMockAuth = () => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (loginId, password) => {
     setLoading(true);
     setError(null);
     return new Promise((resolve) => {
       setTimeout(() => {
-        // Simulating basic validation constraints
-        if (!email.includes('@') || password.length < 6) {
-          setError('Invalid credentials format.');
+        // --- ADMIN BYPASS CHECK ---
+        if (loginId === 'admin' && password === 'admin') {
+            const adminUser = { 
+                email: 'admin@system.local', 
+                name: 'System Administrator', 
+                role: 'Super Admin', 
+                avatar: null 
+            };
+            setUser(adminUser);
+            localStorage.setItem('pg_monitor_user', JSON.stringify(adminUser));
+            setLoading(false);
+            resolve(true);
+            return;
+        }
+
+        // --- STANDARD VALIDATION ---
+        if (!loginId.includes('@') || password.length < 6) {
+          setError('Invalid credentials. (Try admin/admin)');
           setLoading(false);
           resolve(false);
           return;
         }
         
-        // Simulating "Upsert" (Login or Auto-Create)
-        const userData = { email, name: email.split('@')[0], role: 'Admin', avatar: null };
+        // Simulating "Upsert" for normal emails
+        const userData = { email: loginId, name: loginId.split('@')[0], role: 'User', avatar: null };
         setUser(userData);
         localStorage.setItem('pg_monitor_user', JSON.stringify(userData));
         setLoading(false);
         resolve(true);
-      }, 1500); // Fake network delay
+      }, 1500); 
     });
   };
 
@@ -88,42 +101,36 @@ const useMockAuth = () => {
   return { user, loading, error, login, googleLogin, logout };
 };
 
-// --- MOCK DATA (Existing) ---
+// --- MOCK DATA ---
 const mockConnections = [
   { pid: 14023, user: 'postgres', db: 'production', app: 'pgAdmin 4', state: 'active', duration: '00:00:04', query: 'SELECT * FROM pg_stat_activity WHERE state = \'active\';', ip: '192.168.1.5' },
   { pid: 14099, user: 'app_user', db: 'production', app: 'NodeJS Backend', state: 'idle in transaction', duration: '00:15:23', query: 'UPDATE orders SET status = \'processing\' WHERE id = 4591;', ip: '10.0.0.12' },
   { pid: 15102, user: 'analytics', db: 'warehouse', app: 'Metabase', state: 'active', duration: '00:42:10', query: 'SELECT region, SUM(amount) FROM sales GROUP BY region ORDER BY 2 DESC;', ip: '10.0.0.8' },
   { pid: 15201, user: 'app_user', db: 'production', app: 'Go Worker', state: 'active', duration: '00:00:01', query: 'INSERT INTO logs (level, msg) VALUES (\'info\', \'Job started\');', ip: '10.0.0.15' },
   { pid: 15333, user: 'postgres', db: 'postgres', app: 'psql', state: 'idle', duration: '01:20:00', query: '-- idle connection', ip: 'local' },
-  { pid: 15440, user: 'etl_service', db: 'warehouse', app: 'Python Script', state: 'active', duration: '00:03:45', query: 'COPY transactions FROM \'/tmp/dump.csv\' WITH CSV HEADER;', ip: '10.0.0.22' },
 ];
 
 const mockErrorLogs = [
   { id: 101, type: 'Connection Timeout', timestamp: '10:42:15', user: 'app_svc', db: 'production', query: 'SELECT * FROM large_table_v2...', detail: 'Client closed connection before response' },
   { id: 102, type: 'Deadlock Detected', timestamp: '10:45:22', user: 'worker_01', db: 'warehouse', query: 'UPDATE inventory SET stock = stock - 1...', detail: 'Process 14022 waits for ShareLock on transaction 99201' },
   { id: 103, type: 'Query Timeout', timestamp: '11:01:05', user: 'analytics', db: 'warehouse', query: 'SELECT * FROM logs WHERE created_at < ...', detail: 'Canceling statement due to statement_timeout' },
-  { id: 104, type: 'Connection Timeout', timestamp: '11:15:30', user: 'web_client', db: 'production', query: 'AUTH CHECK...', detail: 'terminating connection due to idle-in-transaction timeout' },
-  { id: 105, type: 'Constraint Violation', timestamp: '11:20:12', user: 'api_write', db: 'production', query: 'INSERT INTO users (email) VALUES...', detail: 'Key (email)=(test@example.com) already exists' },
 ];
 
 const missingIndexesData = [
   { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%' },
   { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%' },
   { id: 3, table: 'audit_logs', column: 'user_id', impact: 'Medium', scans: '420k', improvement: '75%' },
-  { id: 4, table: 'products', column: 'category_id', impact: 'High', scans: '310k', improvement: '88%' },
 ];
 
 const unusedIndexesData = [
   { id: 1, table: 'users', indexName: 'idx_users_last_login_old', size: '450MB', lastUsed: '2023-11-04' },
   { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never' },
   { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15' },
-  { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20' },
 ];
 
 const lowHitRatioData = [
   { id: 1, table: 'large_audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM large_audit_logs WHERE event_data LIKE '%error%'", recommendation: 'Leading wildcard forces Seq Scan. Use Trigram Index.' },
   { id: 2, table: 'payment_history', ratio: 45, total_scans: '890k', problem_query: "SELECT sum(amt) FROM payment_history WHERE created_at::date = now()::date", recommendation: 'Casting prevents index usage. Use WHERE created_at >= ...' },
-  { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected. Run VACUUM ANALYZE.' },
 ];
 
 const apiQueryData = [
@@ -137,7 +144,6 @@ const apiQueryData = [
     queries: [
       { sql: 'SELECT count(*) FROM orders WHERE status = \'pending\'', calls: 1, duration: 120 },
       { sql: 'SELECT sum(total) FROM payments WHERE created_at > NOW() - INTERVAL \'24h\'', calls: 1, duration: 145 },
-      { sql: 'SELECT * FROM notifications WHERE read = false LIMIT 5', calls: 1, duration: 15 }
     ],
     ai_insight: 'Heavy aggregation on payments table. Consider creating a materialized view for daily stats.'
   },
@@ -151,36 +157,8 @@ const apiQueryData = [
     queries: [
       { sql: 'BEGIN TRANSACTION', calls: 1, duration: 2 },
       { sql: 'SELECT stock FROM products WHERE id = $1 FOR UPDATE', calls: 5, duration: 45 },
-      { sql: 'INSERT INTO orders (...) VALUES (...)', calls: 1, duration: 12 },
-      { sql: 'UPDATE products SET stock = stock - 1 WHERE id = $1', calls: 5, duration: 55 },
-      { sql: 'COMMIT', calls: 1, duration: 5 }
     ],
     ai_insight: 'Detected N+1 Query issue. The product stock check runs 5 times in a loop. Batch these into a single query.'
-  },
-  { 
-    id: 'api_3', 
-    method: 'GET', 
-    endpoint: '/api/v1/users/profile', 
-    avg_duration: 45, 
-    calls_per_min: 2100,
-    db_time_pct: 30,
-    queries: [
-      { sql: 'SELECT * FROM users WHERE id = $1', calls: 1, duration: 5 },
-      { sql: 'SELECT * FROM permissions WHERE role_id = $1', calls: 1, duration: 4 }
-    ],
-    ai_insight: 'Highly optimized. Low database footprint. Cache hit ratio is excellent.'
-  },
-  { 
-    id: 'api_4', 
-    method: 'GET', 
-    endpoint: '/api/v1/search', 
-    avg_duration: 850, 
-    calls_per_min: 45,
-    db_time_pct: 95,
-    queries: [
-      { sql: 'SELECT * FROM products WHERE name ILIKE \'%$1%\'', calls: 1, duration: 810 }
-    ],
-    ai_insight: 'Critical: Full table scan triggered by ILIKE with leading wildcard. Implement Full-Text Search (tsvector).'
   }
 ];
 
@@ -216,7 +194,6 @@ const LoginBackground = () => {
   const [data, setData] = useState([]);
 
   useEffect(() => {
-    // Seed data
     const initialData = Array.from({ length: 40 }, (_, i) => ({ i, v1: 20 + Math.random() * 30, v2: 10 + Math.random() * 20 }));
     setData(initialData);
 
@@ -245,12 +222,12 @@ const LoginBackground = () => {
 
 // --- LOGIN PAGE COMPONENT ---
 const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onLogin(email, password);
+    onLogin(loginId, password);
   };
 
   return (
@@ -292,9 +269,13 @@ const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ position: 'relative' }}>
             <Mail size={16} color={THEME.textMuted} style={{ position: 'absolute', left: 14, top: 14 }} />
+            {/* CHANGED to type="text" to allow 'admin' without @ symbol */}
             <input 
-              type="email" placeholder="Email Address" required
-              value={email} onChange={(e) => setEmail(e.target.value)}
+              type="text" 
+              placeholder="Email or Login ID" 
+              required
+              value={loginId} 
+              onChange={(e) => setLoginId(e.target.value)}
               style={{ 
                 width: '100%', background: 'rgba(2, 6, 23, 0.5)', border: `1px solid ${THEME.grid}`,
                 padding: '12px 12px 12px 42px', borderRadius: 8, color: '#fff', fontSize: 14, outline: 'none',
@@ -307,7 +288,7 @@ const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
           <div style={{ position: 'relative' }}>
             <Key size={16} color={THEME.textMuted} style={{ position: 'absolute', left: 14, top: 14 }} />
             <input 
-              type="password" placeholder="Password" required minLength={6}
+              type="password" placeholder="Password" required
               value={password} onChange={(e) => setPassword(e.target.value)}
               style={{ 
                 width: '100%', background: 'rgba(2, 6, 23, 0.5)', border: `1px solid ${THEME.grid}`,
@@ -329,7 +310,7 @@ const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
             onMouseDown={(e) => !loading && (e.target.style.transform = 'scale(0.98)')}
             onMouseUp={(e) => !loading && (e.target.style.transform = 'scale(1)')}
           >
-            {loading ? 'Authenticating...' : 'Sign In / Create Account'}
+            {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
 
@@ -558,14 +539,12 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   
-  // Tab-Specific States
   const [indexViewMode, setIndexViewMode] = useState(null); 
   const [selectedIndexItem, setSelectedIndexItem] = useState(null); 
   const [reliabilityViewMode, setReliabilityViewMode] = useState(null); 
   const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
-  const [selectedApiItem, setSelectedApiItem] = useState(null); // API Tab state
+  const [selectedApiItem, setSelectedApiItem] = useState(null);
 
-  // Data States
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
     selectPerSec: 1245, insertPerSec: 342, updatePerSec: 198, deletePerSec: 62,
@@ -640,11 +619,8 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
 
   const formatUptime = seconds => `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 
-  // --- TAB RENDERERS ---
-
   const ApiQueriesTab = () => (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 24, height: 'calc(100vh - 140px)', animation: 'fadeIn 0.5s ease' }}>
-        {/* Left: API List */}
         <GlassCard title="API Endpoints" rightNode={<Network size={16} color={THEME.textMuted} />}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
                 {apiQueryData.map(api => (
@@ -680,7 +656,6 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
             </div>
         </GlassCard>
 
-        {/* Right: Drill Down + AI */}
         {selectedApiItem ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24, height: '100%' }}>
                 <GlassCard title="Query Analysis" rightNode={<Cpu size={16} color={THEME.ai} />}>
@@ -1372,7 +1347,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout }) => {
   );
 };
 
-// --- APP WRAPPER (Handling Logic Switch) ---
+// --- APP WRAPPER ---
 const App = () => {
     const { user, loading, error, login, googleLogin, logout } = useMockAuth();
 
