@@ -256,161 +256,284 @@ const ChartDefs = () => (
   </svg>
 );
 
-// --- VISUALIZATION: LOGIN BACKGROUND ---
-const LoginBackground = () => {
-  const [data, setData] = useState([]);
-
-  useEffect(() => {
-    const initialData = Array.from({ length: 40 }, (_, i) => ({ i, v1: 20 + Math.random() * 30, v2: 10 + Math.random() * 20 }));
-    setData(initialData);
-
-    const interval = setInterval(() => {
-      setData(prev => {
-        const newData = [...prev.slice(1), { i: prev[prev.length - 1].i + 1, v1: 20 + Math.random() * 30, v2: 10 + Math.random() * 20 }];
-        return newData;
-      });
-    }, 100);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.2, pointerEvents: 'none', overflow: 'hidden' }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data}>
-          <ChartDefs />
-          <Area type="monotone" dataKey="v1" stroke={THEME.primary} fill="url(#primaryGradient)" strokeWidth={2} isAnimationActive={false} />
-          <Area type="monotone" dataKey="v2" stroke={THEME.secondary} fill="url(#barGradient)" strokeWidth={2} isAnimationActive={false} />
-        </AreaChart>
-      </ResponsiveContainer>
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, transparent 0%, #020617 80%)' }} />
-    </div>
+// --- ADVANCED LOGIN STYLES ---
+const LoginStyles = () => (
+    <style>{`
+      @keyframes gridMove {
+        0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
+        100% { transform: perspective(500px) rotateX(60deg) translateY(50px); }
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+      }
+      @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 20px ${THEME.primary}40; border-color: ${THEME.primary}80; }
+        50% { box-shadow: 0 0 40px ${THEME.primary}60; border-color: ${THEME.primary}; }
+      }
+      @keyframes scanline {
+        0% { transform: translateY(-100%); }
+        100% { transform: translateY(100%); }
+      }
+      @keyframes typeCursor {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+      .login-input-group:focus-within label {
+        color: ${THEME.primary};
+        transform: translateY(-24px) scale(0.85);
+      }
+      .login-input-group label {
+        transform-origin: left top;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .filled-input + label {
+        transform: translateY(-24px) scale(0.85);
+      }
+      .glass-card-advanced {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      }
+      .scanline-overlay {
+        background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.3) 51%);
+        background-size: 100% 4px;
+        pointer-events: none;
+      }
+    `}</style>
   );
-};
 
-// --- LOGIN PAGE COMPONENT ---
-const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
-  const [loginId, setLoginId] = useState('');
-  const [password, setPassword] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onLogin(loginId, password);
+// --- VISUALIZATION: ADVANCED BACKGROUND ---
+const LoginBackground = () => {
+    return (
+      <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#020617' }}>
+        {/* Moving Grid Floor */}
+        <div 
+          style={{
+            position: 'absolute',
+            bottom: -100,
+            left: '-50%',
+            width: '200%',
+            height: '100%',
+            backgroundImage: `
+              linear-gradient(rgba(14, 165, 233, 0.3) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(14, 165, 233, 0.3) 1px, transparent 1px)
+            `,
+            backgroundSize: '50px 50px',
+            animation: 'gridMove 4s linear infinite',
+            opacity: 0.15,
+            transformOrigin: 'bottom center',
+          }} 
+        />
+        
+        {/* Radial Gradient overlay for depth */}
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 30%, transparent 0%, #020617 90%)' }} />
+        
+        {/* Decorative Orbs */}
+        <div style={{ position: 'absolute', top: '20%', left: '20%', width: 300, height: 300, background: THEME.secondary, filter: 'blur(120px)', opacity: 0.1, animation: 'float 6s ease-in-out infinite' }} />
+        <div style={{ position: 'absolute', bottom: '10%', right: '10%', width: 400, height: 400, background: THEME.primary, filter: 'blur(120px)', opacity: 0.1, animation: 'float 8s ease-in-out infinite reverse' }} />
+        
+        {/* Scanline Effect */}
+        <div className="scanline-overlay" style={{ position: 'absolute', inset: 0, opacity: 0.3 }} />
+      </div>
+    );
   };
 
-  return (
-    <div style={{ 
-      height: '100vh', width: '100vw', background: THEME.bg, display: 'flex', 
-      alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' 
-    }}>
-      <LoginBackground />
-      
-      <div style={{ 
-        width: 400, zIndex: 10, padding: 40, borderRadius: 24, 
-        background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(20px)',
-        border: `1px solid ${THEME.glassBorder}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        animation: 'fadeIn 0.8s ease-out'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ 
-            width: 60, height: 60, borderRadius: 16, margin: '0 auto 16px',
-            background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 0 20px ${THEME.primary}60`
-          }}>
-            <Database color="#fff" size={32} />
+// --- ADVANCED LOGIN PAGE ---
+const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
+    const [loginId, setLoginId] = useState('');
+    const [password, setPassword] = useState('');
+    const [initStep, setInitStep] = useState(0);
+  
+    // Simulated Terminal Startup Effect
+    useEffect(() => {
+      const steps = [
+        setTimeout(() => setInitStep(1), 500),  // Connect
+        setTimeout(() => setInitStep(2), 1200), // Encrypt
+        setTimeout(() => setInitStep(3), 2000), // Ready
+      ];
+      return () => steps.forEach(clearTimeout);
+    }, []);
+  
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      onLogin(loginId, password);
+    };
+  
+    return (
+      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+        <LoginStyles />
+        <LoginBackground />
+  
+        <div className="glass-card-advanced" style={{ 
+          width: 440, 
+          zIndex: 10, 
+          padding: '40px', 
+          borderRadius: 24, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 32,
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* Top Glowing Border Line */}
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 2, background: `linear-gradient(90deg, transparent, ${THEME.primary}, transparent)` }} />
+  
+          {/* Header Section */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ 
+              width: 64, height: 64, margin: '0 auto 24px', borderRadius: 18, 
+              background: `linear-gradient(135deg, ${THEME.primary}20, ${THEME.secondary}20)`,
+              border: `1px solid ${THEME.glassBorder}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: `0 0 30px ${THEME.primary}20`,
+              animation: 'pulse-glow 3s infinite'
+            }}>
+              <Database color={THEME.textMain} size={32} />
+            </div>
+            <h1 style={{ fontSize: 26, fontWeight: 700, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>PG Monitor</h1>
+            
+            {/* Terminal Style Status */}
+            <div style={{ 
+              marginTop: 12, height: 20, fontSize: 11, fontFamily: 'monospace', color: THEME.textMuted,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 
+            }}>
+              {initStep >= 1 && <span style={{ color: THEME.success }}>● NET: ONLINE</span>}
+              {initStep >= 2 && <span style={{ color: THEME.primary }}>● SEC: 256-BIT</span>}
+              {initStep < 3 && <span style={{ borderRight: '2px solid white', animation: 'typeCursor 0.8s infinite' }}>&nbsp;</span>}
+            </div>
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: THEME.textMain, margin: 0 }}>PG Monitor</h1>
-          <p style={{ color: THEME.textMuted, fontSize: 13, marginTop: 8 }}>Secure Database Intelligence</p>
-        </div>
-
-        {error && (
-          <div style={{ 
-            background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, 
-            color: '#fca5a5', padding: 12, borderRadius: 8, fontSize: 12, marginBottom: 20,
-            display: 'flex', alignItems: 'center', gap: 8 
-          }}>
-            <AlertCircle size={14} /> {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ position: 'relative' }}>
-            <Mail size={16} color={THEME.textMuted} style={{ position: 'absolute', left: 14, top: 14 }} />
-            <input 
-              type="text" 
-              placeholder="Email or Login ID" 
-              required
-              value={loginId} 
-              onChange={(e) => setLoginId(e.target.value)}
+  
+          {/* Error Message */}
+          {error && (
+            <div style={{ 
+              background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, 
+              color: '#fca5a5', padding: '12px 16px', borderRadius: 12, fontSize: 13, 
+              display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeIn 0.3s ease' 
+            }}>
+              <AlertTriangle size={16} /> {error}
+            </div>
+          )}
+  
+          {/* Form */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            
+            {/* Email Input */}
+            <div className="login-input-group" style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', left: 16, top: 16, pointerEvents: 'none', color: THEME.textMuted }}>
+                <Mail size={18} />
+              </div>
+              <input 
+                type="text" required
+                value={loginId} onChange={(e) => setLoginId(e.target.value)}
+                className={loginId ? 'filled-input' : ''}
+                style={{ 
+                  width: '100%', padding: '16px 16px 16px 48px', 
+                  background: 'rgba(2, 6, 23, 0.4)', border: `1px solid ${THEME.grid}`, 
+                  borderRadius: 12, color: 'white', fontSize: 14, outline: 'none',
+                  transition: 'all 0.2s'
+                }}
+                onFocus={(e) => { e.target.style.borderColor = THEME.primary; e.target.style.background = 'rgba(2, 6, 23, 0.8)'; }}
+                onBlur={(e) => { e.target.style.borderColor = THEME.grid; e.target.style.background = 'rgba(2, 6, 23, 0.4)'; }}
+              />
+              <label style={{ 
+                position: 'absolute', left: 48, top: 16, color: THEME.textMuted, fontSize: 14, 
+                pointerEvents: 'none', fontWeight: 500 
+              }}>
+                Login ID
+              </label>
+            </div>
+  
+            {/* Password Input */}
+            <div className="login-input-group" style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', left: 16, top: 16, pointerEvents: 'none', color: THEME.textMuted }}>
+                <Lock size={18} />
+              </div>
+              <input 
+                type="password" required
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                className={password ? 'filled-input' : ''}
+                style={{ 
+                  width: '100%', padding: '16px 16px 16px 48px', 
+                  background: 'rgba(2, 6, 23, 0.4)', border: `1px solid ${THEME.grid}`, 
+                  borderRadius: 12, color: 'white', fontSize: 14, outline: 'none',
+                  transition: 'all 0.2s'
+                }}
+                onFocus={(e) => { e.target.style.borderColor = THEME.primary; e.target.style.background = 'rgba(2, 6, 23, 0.8)'; }}
+                onBlur={(e) => { e.target.style.borderColor = THEME.grid; e.target.style.background = 'rgba(2, 6, 23, 0.4)'; }}
+              />
+              <label style={{ 
+                position: 'absolute', left: 48, top: 16, color: THEME.textMuted, fontSize: 14, 
+                pointerEvents: 'none', fontWeight: 500 
+              }}>
+                Password
+              </label>
+            </div>
+  
+            <button 
+              type="submit" disabled={loading || initStep < 3}
               style={{ 
-                width: '100%', background: 'rgba(2, 6, 23, 0.5)', border: `1px solid ${THEME.grid}`,
-                padding: '12px 12px 12px 42px', borderRadius: 8, color: '#fff', fontSize: 14, outline: 'none',
-                transition: 'border 0.2s'
+                background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`,
+                border: 'none', padding: '16px', borderRadius: 12, color: '#fff', fontWeight: 700,
+                cursor: (loading || initStep < 3) ? 'not-allowed' : 'pointer', fontSize: 15,
+                opacity: (loading || initStep < 3) ? 0.7 : 1, 
+                boxShadow: `0 4px 20px ${THEME.primary}40`,
+                transition: 'transform 0.1s, box-shadow 0.2s',
+                position: 'relative', overflow: 'hidden'
               }}
-              onFocus={(e) => e.target.style.borderColor = THEME.primary}
-              onBlur={(e) => e.target.style.borderColor = THEME.grid}
-            />
+              onMouseEnter={(e) => !loading && (e.target.style.boxShadow = `0 6px 25px ${THEME.primary}60`)}
+              onMouseLeave={(e) => !loading && (e.target.style.boxShadow = `0 4px 20px ${THEME.primary}40`)}
+              onMouseDown={(e) => !loading && (e.target.style.transform = 'scale(0.98)')}
+              onMouseUp={(e) => !loading && (e.target.style.transform = 'scale(1)')}
+            >
+              {loading ? (
+                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                   <RefreshCw size={16} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> 
+                   AUTHENTICATING...
+                   <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+                 </div>
+              ) : (
+                 'ACCESS DASHBOARD'
+              )}
+            </button>
+          </form>
+  
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' }} />
+            <span style={{ color: THEME.textMuted, fontSize: 11, fontWeight: 600 }}>SSO LOGIN</span>
+            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' }} />
           </div>
-          <div style={{ position: 'relative' }}>
-            <Key size={16} color={THEME.textMuted} style={{ position: 'absolute', left: 14, top: 14 }} />
-            <input 
-              type="password" placeholder="Password" required
-              value={password} onChange={(e) => setPassword(e.target.value)}
-              style={{ 
-                width: '100%', background: 'rgba(2, 6, 23, 0.5)', border: `1px solid ${THEME.grid}`,
-                padding: '12px 12px 12px 42px', borderRadius: 8, color: '#fff', fontSize: 14, outline: 'none'
-              }}
-              onFocus={(e) => e.target.style.borderColor = THEME.primary}
-              onBlur={(e) => e.target.style.borderColor = THEME.grid}
-            />
-          </div>
-
+  
           <button 
-            type="submit" disabled={loading}
+            onClick={onGoogleLogin} disabled={loading}
             style={{ 
-              background: `linear-gradient(90deg, ${THEME.primary}, ${THEME.secondary})`,
-              border: 'none', padding: 14, borderRadius: 8, color: '#fff', fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, marginTop: 8,
-              opacity: loading ? 0.7 : 1, transition: 'transform 0.1s'
+              width: '100%', background: 'rgba(255, 255, 255, 0.95)', border: 'none', padding: '14px', borderRadius: 12,
+              color: '#0f172a', fontWeight: 600, cursor: 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+              opacity: loading ? 0.7 : 1, transition: 'background 0.2s'
             }}
-            onMouseDown={(e) => !loading && (e.target.style.transform = 'scale(0.98)')}
-            onMouseUp={(e) => !loading && (e.target.style.transform = 'scale(1)')}
+            onMouseEnter={(e) => e.target.style.background = '#ffffff'}
+            onMouseLeave={(e) => e.target.style.background = 'rgba(255, 255, 255, 0.95)'}
           >
-            {loading ? 'Authenticating...' : 'Sign In'}
+            <Chrome size={18} fill="#0f172a" />
+            Continue with Google
           </button>
-        </form>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
-          <div style={{ flex: 1, height: 1, background: THEME.grid }} />
-          <span style={{ color: THEME.textMuted, fontSize: 11 }}>OR CONTINUE WITH</span>
-          <div style={{ flex: 1, height: 1, background: THEME.grid }} />
-        </div>
-
-        <button 
-          onClick={onGoogleLogin} disabled={loading}
-          style={{ 
-            width: '100%', background: 'white', border: 'none', padding: 12, borderRadius: 8,
-            color: '#1e293b', fontWeight: 600, cursor: 'pointer', fontSize: 14,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            opacity: loading ? 0.7 : 1
-          }}
-        >
-          <Chrome size={18} fill="#1e293b" />
-          Google
-        </button>
-
-        <div style={{ marginTop: 24, display: 'flex', justifyContent: 'center', gap: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: THEME.success }}>
-            <Shield size={12} /> Secure Connection
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: THEME.textMuted }}>
-            <Lock size={12} /> End-to-End Encrypted
+  
+          {/* Footer Info */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: THEME.textMuted }}>
+               <Shield size={12} color={THEME.success} /> v2.4.0 Stable
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: THEME.textMuted }}>
+               <Globe size={12} color={THEME.primary} /> US-East-1
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 // --- REUSABLE COMPONENTS ---
 const GlassCard = ({ children, title, rightNode, style }) => (
@@ -1289,7 +1412,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser }) =>
         if (indexViewMode === 'missing') data = missingIndexesData;
         else if (indexViewMode === 'unused') data = unusedIndexesData;
         else if (indexViewMode === 'hitRatio') data = lowHitRatioData;
-    
+     
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%', overflowY: 'auto', paddingRight: 4 }}>
             {data.map((item) => (
