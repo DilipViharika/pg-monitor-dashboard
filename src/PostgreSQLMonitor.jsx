@@ -28,7 +28,6 @@ const THEME = {
 };
 
 // --- MOCK DATA ---
-
 const mockConnections = [
   { pid: 14023, user: 'postgres', db: 'production', app: 'pgAdmin 4', state: 'active', duration: '00:00:04', query: 'SELECT * FROM pg_stat_activity WHERE state = \'active\';', ip: '192.168.1.5' },
   { pid: 14099, user: 'app_user', db: 'production', app: 'NodeJS Backend', state: 'idle in transaction', duration: '00:15:23', query: 'UPDATE orders SET status = \'processing\' WHERE id = 4591;', ip: '10.0.0.12' },
@@ -71,17 +70,14 @@ const ChartDefs = () => (
           <feMergeNode in="SourceGraphic" />
         </feMerge>
       </filter>
-
       <linearGradient id="primaryGradient" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor={THEME.primary} stopOpacity={0.4} />
         <stop offset="100%" stopColor={THEME.primary} stopOpacity={0} />
       </linearGradient>
-      
       <linearGradient id="successGradient" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor={THEME.success} stopOpacity={0.4} />
         <stop offset="100%" stopColor={THEME.success} stopOpacity={0} />
       </linearGradient>
-
       <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor={THEME.secondary} stopOpacity={1} />
         <stop offset="100%" stopColor={THEME.secondary} stopOpacity={0.3} />
@@ -91,7 +87,6 @@ const ChartDefs = () => (
 );
 
 // --- REUSABLE COMPONENTS ---
-
 const GlassCard = ({ children, title, rightNode, style }) => (
   <div
     style={{
@@ -116,7 +111,6 @@ const GlassCard = ({ children, title, rightNode, style }) => (
       {rightNode}
     </div>
     <div style={{ flex: 1, minHeight: 0, position: 'relative', zIndex: 1 }}>{children}</div>
-    {/* Decorative Glow */}
     <div style={{ position: 'absolute', top: -60, right: -60, width: 140, height: 140, background: `radial-gradient(circle, ${THEME.primary}15 0%, transparent 70%)`, pointerEvents: 'none' }} />
   </div>
 );
@@ -216,8 +210,16 @@ const ResourceGauge = ({ label, value, color }) => {
   );
 };
 
-// --- SUB-COMPONENTS FOR DRILL DOWNS ---
+const EmptyState = ({ icon: Icon, text }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: THEME.textMuted, gap: 16, opacity: 0.7 }}>
+    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={32} />
+    </div>
+    <div>{text}</div>
+  </div>
+);
 
+// --- DRILL DOWN SUB-COMPONENTS ---
 const AIAgentView = ({ type, data }) => {
   if (!data) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
@@ -283,25 +285,18 @@ const AIAgentView = ({ type, data }) => {
   );
 };
 
-const EmptyState = ({ icon: Icon, text }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: THEME.textMuted, gap: 16, opacity: 0.7 }}>
-    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Icon size={32} />
-    </div>
-    <div>{text}</div>
-  </div>
-);
-
-// --- MAIN DASHBOARD ---
-
+// --- MAIN DASHBOARD COMPONENT ---
 const PostgreSQLMonitor = () => {
   const [activeTab, setActiveTab] = useState('overview');
   
-  // Tab-Specific View Modes
+  // --- LIFTED STATE FOR DRILL DOWNS (Fixes disappearing bug) ---
   const [indexViewMode, setIndexViewMode] = useState(null); 
-  const [selectedItem, setSelectedItem] = useState(null); 
-  
-  // Data States
+  const [selectedIndexItem, setSelectedIndexItem] = useState(null); 
+
+  const [reliabilityViewMode, setReliabilityViewMode] = useState(null); // 'active', 'idle', 'errors', null
+  const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
+
+  // --- DATA STATES ---
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
     selectPerSec: 1245, insertPerSec: 342, updatePerSec: 198, deletePerSec: 62,
@@ -323,8 +318,8 @@ const PostgreSQLMonitor = () => {
   const [sparklineData, setSparklineData] = useState([]);
   const [recentAlerts, setRecentAlerts] = useState([]);
 
+  // Initialization
   useEffect(() => {
-    // Generate Initial Mock Data
     setLast30Days(Array.from({ length: 30 }, (_, i) => ({
       date: new Date(new Date().setDate(new Date().getDate() - (29 - i))).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
       qps: Math.floor(Math.random() * 800) + 1200,
@@ -360,7 +355,7 @@ const PostgreSQLMonitor = () => {
     setSparklineData(Array.from({ length: 20 }, () => ({ value: Math.random() * 100 })));
   }, []);
 
-  // Live Updates Simulation
+  // Live Update Interval (Increased to 5s to reduce flicker)
   useEffect(() => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
@@ -372,7 +367,7 @@ const PostgreSQLMonitor = () => {
         diskIOReadRate: Math.floor(Math.random() * 100) + 200,
       }));
       setSparklineData(prev => [...prev.slice(1), { value: Math.random() * 100 }]);
-    }, 2500);
+    }, 5000); // Changed to 5000ms
     return () => clearInterval(interval);
   }, []);
 
@@ -546,14 +541,11 @@ const PostgreSQLMonitor = () => {
   );
 
   const ReliabilityTab = () => {
-    // drillDownType: 'active' | 'idle' | 'errors' | null
-    const [drillDownType, setDrillDownType] = useState(null); 
-    const [selectedItem, setSelectedItem] = useState(null); 
-
+    // List Filtering
     const getListItems = () => {
-      if (drillDownType === 'active') return mockConnections.filter(c => c.state === 'active');
-      if (drillDownType === 'idle') return mockConnections.filter(c => c.state.includes('idle'));
-      if (drillDownType === 'errors') return mockErrorLogs;
+      if (reliabilityViewMode === 'active') return mockConnections.filter(c => c.state === 'active');
+      if (reliabilityViewMode === 'idle') return mockConnections.filter(c => c.state.includes('idle'));
+      if (reliabilityViewMode === 'errors') return mockErrorLogs;
       return [];
     };
 
@@ -648,7 +640,6 @@ const PostgreSQLMonitor = () => {
 
     return (
       <>
-        {/* Top Metrics */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
           <MetricCard icon={CheckCircle} title="Availability" value={metrics.availability} unit="%" color={THEME.success} />
           <MetricCard icon={XCircle} title="Downtime Incidents" value={metrics.downtimeIncidents} color={THEME.danger} />
@@ -656,17 +647,12 @@ const PostgreSQLMonitor = () => {
           <MetricCard icon={Lock} title="Deadlocks" value={metrics.deadlockCount} color={THEME.secondary} />
         </div>
 
-        {/* DEFAULT OVERVIEW VIEW */}
-        {!drillDownType ? (
+        {!reliabilityViewMode ? (
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, animation: 'fadeIn 0.5s ease' }}>
             <GlassCard title="Connection Health">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 
-                {/* Active Connections Bar - Clickable */}
-                <div 
-                  onClick={() => { setDrillDownType('active'); setSelectedItem(null); }}
-                  style={{ cursor: 'pointer' }}
-                >
+                <div onClick={() => { setReliabilityViewMode('active'); setSelectedReliabilityItem(null); }} style={{ cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: THEME.textMain }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span>Active Connections</span>
@@ -677,11 +663,7 @@ const PostgreSQLMonitor = () => {
                   <NeonProgressBar value={metrics.activeConnections} max={metrics.maxConnections} color={THEME.primary} />
                 </div>
 
-                {/* Idle Connections Bar - Clickable */}
-                <div
-                   onClick={() => { setDrillDownType('idle'); setSelectedItem(null); }}
-                   style={{ cursor: 'pointer' }}
-                >
+                <div onClick={() => { setReliabilityViewMode('idle'); setSelectedReliabilityItem(null); }} style={{ cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: THEME.textMain }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span>Idle Connections</span>
@@ -692,7 +674,6 @@ const PostgreSQLMonitor = () => {
                   <NeonProgressBar value={metrics.idleConnections} max={metrics.maxConnections} color={THEME.textMuted} />
                 </div>
                 
-                {/* Small Info Cards */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
                   <div style={{ background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, padding: 12, borderRadius: 8, textAlign: 'center' }}>
                     <div style={{ fontSize: 20, fontWeight: 700, color: THEME.danger }}>{metrics.failedConnections}</div>
@@ -709,11 +690,7 @@ const PostgreSQLMonitor = () => {
             <GlassCard title="Top Error Types">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {topErrors.map((error, idx) => (
-                  <div 
-                    key={idx} 
-                    onClick={() => { setDrillDownType('errors'); setSelectedItem(null); }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
-                  >
+                  <div key={idx} onClick={() => { setReliabilityViewMode('errors'); setSelectedReliabilityItem(null); }} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                         <span style={{ color: THEME.textMain }}>{error.type}</span>
@@ -728,14 +705,12 @@ const PostgreSQLMonitor = () => {
             </GlassCard>
           </div>
         ) : (
-          // --- DRILL DOWN VIEW ---
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: 24, height: 450, animation: 'slideUp 0.3s ease' }}>
-            {/* LEFT LIST PANEL */}
             <GlassCard 
-              title={drillDownType === 'active' ? "Active Sessions" : drillDownType === 'idle' ? "Idle Sessions" : "Recent Errors"}
+              title={reliabilityViewMode === 'active' ? "Active Sessions" : reliabilityViewMode === 'idle' ? "Idle Sessions" : "Recent Errors"}
               rightNode={
                 <button 
-                  onClick={() => { setDrillDownType(null); setSelectedItem(null); }}
+                  onClick={() => { setReliabilityViewMode(null); setSelectedReliabilityItem(null); }}
                   style={{ background: 'transparent', border: 'none', color: THEME.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}
                 >
                   <ChevronLeft size={14} /> Back
@@ -743,24 +718,24 @@ const PostgreSQLMonitor = () => {
               }
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 8px 8px', fontSize: 10, color: THEME.textMuted, fontWeight: 600 }}>
-                 <span>{drillDownType === 'errors' ? 'TYPE / TIME' : 'PID / APP'}</span>
-                 <span>{drillDownType === 'errors' ? 'USER' : 'DURATION'}</span>
+                 <span>{reliabilityViewMode === 'errors' ? 'TYPE / TIME' : 'PID / APP'}</span>
+                 <span>{reliabilityViewMode === 'errors' ? 'USER' : 'DURATION'}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', height: '100%', paddingRight: 4 }}>
                 {getListItems().map(item => (
                   <div
                     key={item.id || item.pid}
-                    onClick={() => setSelectedItem(item)}
+                    onClick={() => setSelectedReliabilityItem(item)}
                     style={{
                       padding: 12,
                       borderRadius: 8,
-                      background: (selectedItem?.id === item.id || selectedItem?.pid === item.pid) ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${(selectedItem?.id === item.id || selectedItem?.pid === item.pid) ? THEME.primary : 'rgba(255,255,255,0.05)'}`,
+                      background: (selectedReliabilityItem?.id === item.id || selectedReliabilityItem?.pid === item.pid) ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${(selectedReliabilityItem?.id === item.id || selectedReliabilityItem?.pid === item.pid) ? THEME.primary : 'rgba(255,255,255,0.05)'}`,
                       cursor: 'pointer',
                       transition: 'all 0.2s'
                     }}
                   >
-                    {drillDownType === 'errors' ? (
+                    {reliabilityViewMode === 'errors' ? (
                         <>
                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ fontSize: 13, fontWeight: 600, color: THEME.danger }}>{item.type}</span>
@@ -787,11 +762,10 @@ const PostgreSQLMonitor = () => {
               </div>
             </GlassCard>
 
-            {/* RIGHT DETAIL PANEL */}
             <GlassCard title="Inspector Details" rightNode={<RefreshCw size={14} color={THEME.textMuted} style={{ cursor: 'pointer' }} />}>
-              {drillDownType === 'errors' 
-                 ? <ErrorDetailPanel data={selectedItem} />
-                 : <ConnectionDetailPanel data={selectedItem} />
+              {reliabilityViewMode === 'errors' 
+                 ? <ErrorDetailPanel data={selectedReliabilityItem} />
+                 : <ConnectionDetailPanel data={selectedReliabilityItem} />
               }
             </GlassCard>
           </div>
@@ -801,7 +775,6 @@ const PostgreSQLMonitor = () => {
   };
 
   const IndexesTab = () => {
-    // Helper to render the list of tables/indexes in the drill-down
     const renderIndexDetailList = () => {
         const data = indexViewMode === 'missing' ? missingIndexesData : unusedIndexesData;
         const isMissing = indexViewMode === 'missing';
@@ -811,12 +784,12 @@ const PostgreSQLMonitor = () => {
             {data.map((item) => (
               <div
                 key={item.id}
-                onClick={() => setSelectedItem(item)}
+                onClick={() => setSelectedIndexItem(item)}
                 style={{
                   padding: 16,
                   borderRadius: 12,
-                  background: selectedItem?.id === item.id ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${selectedItem?.id === item.id ? THEME.primary : 'rgba(255,255,255,0.05)'}`,
+                  background: selectedIndexItem?.id === item.id ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${selectedIndexItem?.id === item.id ? THEME.primary : 'rgba(255,255,255,0.05)'}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                 }}
@@ -838,12 +811,6 @@ const PostgreSQLMonitor = () => {
                 <div style={{ fontSize: 12, color: THEME.textMuted, fontFamily: 'monospace' }}>
                   {isMissing ? `Column: ${item.column}` : item.indexName}
                 </div>
-                {isMissing && (
-                   <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: THEME.textMuted }}>
-                     <TrendingUp size={12} color={THEME.danger} />
-                     <span>{item.scans} seq scans</span>
-                   </div>
-                )}
               </div>
             ))}
           </div>
@@ -854,30 +821,16 @@ const PostgreSQLMonitor = () => {
         <>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, marginBottom: 24 }}>
             <MetricCard icon={TrendingUp} title="Index Hit Ratio" value={metrics.indexHitRatio.toFixed(1)} unit="%" color={THEME.success} />
-            
             <MetricCard 
-                icon={AlertTriangle} 
-                title="Missing Indexes" 
-                value={metrics.missingIndexes} 
-                color={THEME.warning} 
+                icon={AlertTriangle} title="Missing Indexes" value={metrics.missingIndexes} color={THEME.warning} 
                 active={indexViewMode === 'missing'}
-                onClick={() => {
-                    setIndexViewMode(indexViewMode === 'missing' ? null : 'missing');
-                    setSelectedItem(null);
-                }}
+                onClick={() => { setIndexViewMode(indexViewMode === 'missing' ? null : 'missing'); setSelectedIndexItem(null); }}
                 subtitle={indexViewMode === 'missing' ? "Click to close details" : "Click to view tables"}
             />
-            
             <MetricCard 
-                icon={Layers} 
-                title="Unused Indexes" 
-                value={metrics.unusedIndexes} 
-                color={THEME.danger} 
+                icon={Layers} title="Unused Indexes" value={metrics.unusedIndexes} color={THEME.danger} 
                 active={indexViewMode === 'unused'}
-                onClick={() => {
-                    setIndexViewMode(indexViewMode === 'unused' ? null : 'unused');
-                    setSelectedItem(null);
-                }}
+                onClick={() => { setIndexViewMode(indexViewMode === 'unused' ? null : 'unused'); setSelectedIndexItem(null); }}
                 subtitle={indexViewMode === 'unused' ? "Click to close details" : "Click to view candidates"}
             />
         </div>
@@ -922,7 +875,7 @@ const PostgreSQLMonitor = () => {
                 </GlassCard>
 
                 <GlassCard title="AI Optimization Agent" rightNode={<Cpu size={16} color={THEME.ai} />}>
-                    <AIAgentView type={indexViewMode} data={selectedItem} />
+                    <AIAgentView type={indexViewMode} data={selectedIndexItem} />
                 </GlassCard>
             </div>
         )}
@@ -969,7 +922,7 @@ const PostgreSQLMonitor = () => {
                ].map(item => (
                  <button
                    key={item.id}
-                   onClick={() => { setActiveTab(item.id); setIndexViewMode(null); }}
+                   onClick={() => { setActiveTab(item.id); setIndexViewMode(null); setReliabilityViewMode(null); }}
                    style={{
                      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
                      background: activeTab === item.id ? `linear-gradient(90deg, ${THEME.primary}20, transparent)` : 'transparent',
