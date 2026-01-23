@@ -1,50 +1,88 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
+require('dotenv').config();
+
+const overviewRoutes = require('./routes/overview');
+const performanceRoutes = require('./routes/performance');
+const resourcesRoutes = require('./routes/resources');
+const reliabilityRoutes = require('./routes/reliability');
+const indexesRoutes = require('./routes/indexes');
 
 const app = express();
-const PORT = process.env.PORT || 4000;
-
-// PostgreSQL connection pool
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
+// Request logging
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
 // Health check
-app.get('/health', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ status: 'healthy', timestamp: result.rows[0].now });
-  } catch (error) {
-    res.status(503).json({ status: 'unhealthy', error: error.message });
-  }
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
-// API Routes
-app.use('/api/overview', require('./routes/overview'));
-app.use('/api/performance', require('./routes/performance'));
-app.use('/api/resources', require('./routes/resources'));
-app.use('/api/reliability', require('./routes/reliability'));
-app.use('/api/indexes', require('./routes/indexes'));
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    name: 'PG Monitor API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      overview: '/api/overview',
+      performance: '/api/performance/cluster-activity',
+      slowQueries: '/api/performance/slow-queries',
+      resources: '/api/resources',
+      reliability: '/api/reliability',
+      indexes: '/api/indexes'
+    }
+  });
+});
 
-// Error handler
+// API routes
+app.use('/api/overview', overviewRoutes);
+app.use('/api/performance', performanceRoutes);
+app.use('/api/resources', resourcesRoutes);
+app.use('/api/reliability', reliabilityRoutes);
+app.use('/api/indexes', indexesRoutes);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// Error handling
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Internal server error', message: err.message });
+  console.error('Server error:', err);
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
 
-// Start server
+const PORT = process.env.PORT || 4000;
+
 app.listen(PORT, () => {
-  console.log(`PG Monitor API server running on port ${PORT}`);
+  console.log('\n🚀 PG Monitor API Server Started');
+  console.log('=====================================');
+  console.log(`📍 URL: http://localhost:${PORT}`);
+  console.log(`🏥 Health: http://localhost:${PORT}/health`);
+  console.log(`📊 Endpoints: http://localhost:${PORT}/`);
+  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('=====================================\n');
 });
 
-// Export pool for routes
-module.exports = { pool };
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+  });
+});

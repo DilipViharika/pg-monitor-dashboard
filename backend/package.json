@@ -1,7 +1,7 @@
 {
   "name": "pg-monitor-backend",
   "version": "1.0.0",
-  "description": "Backend API for PostgreSQL Monitor Dashboard",
+  "description": "PostgreSQL Monitoring Backend API",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -14,9 +14,6 @@
     "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
-  },
-  "engines": {
-    "node": ">=16.0.0"
+    "nodemon": "^3.0.2"
   }
 }
