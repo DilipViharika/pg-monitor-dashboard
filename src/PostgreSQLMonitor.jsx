@@ -615,7 +615,6 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
   const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
   const [selectedApiItem, setSelectedApiItem] = useState(null); 
   
-  // NEW: State for Profile Modal
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const [metrics, setMetrics] = useState({
