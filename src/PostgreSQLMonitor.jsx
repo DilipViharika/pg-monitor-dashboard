@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Server, Lock, AlertCircle, CheckCircle,
   XCircle, Search, Cpu, Layers, Terminal, Power, RefreshCw, 
   ChevronLeft, ChevronRight, User as UserIcon, Globe, Network, 
-  LogOut, Shield, Key, Mail, Chrome, UserPlus, Settings, Eye, Edit3, Trash2
+  LogOut, Shield, Key, Mail, Chrome, UserPlus, Settings, Eye, Edit3, Trash2, X
 } from 'lucide-react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie,
@@ -127,8 +127,8 @@ const apiQueryData = [
 // --- AUTHENTICATION HOOK ---
 const useMockAuth = () => {
   const [currentUser, setCurrentUser] = useState(null);
-  const [isInitializing, setIsInitializing] = useState(true); // SEPARATE INIT STATE
-  const [loading, setLoading] = useState(false); // BUTTON LOADING STATE
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
   const [allUsers, setAllUsers] = useState([
@@ -147,7 +147,6 @@ const useMockAuth = () => {
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
     }
-    // Only turn off initialization, don't affect button loading
     setIsInitializing(false);
   }, []);
 
@@ -179,12 +178,18 @@ const useMockAuth = () => {
     });
   };
 
-  const googleLogin = async () => {
+  // UPDATED: Now accepts email and name to capture data dynamically
+  const googleLogin = async (email, name) => {
     setLoading(true);
     return new Promise((resolve) => {
       setTimeout(() => {
+        // Capture the dynamic name and email provided by the modal
         const googleUser = { 
-             id: 999, email: 'google_user@gmail.com', name: 'Google User', role: 'Viewer', accessLevel: 'read',
+             id: 999 + Math.floor(Math.random() * 1000), 
+             email: email || 'google_user@gmail.com', 
+             name: name || 'Google User', 
+             role: 'Viewer', 
+             accessLevel: 'read',
              allowedScreens: ['overview', 'resources'] 
         };
         setCurrentUser(googleUser);
@@ -350,20 +355,105 @@ const LoginVisuals = () => {
   );
 };
 
+// --- NEW MOCK GOOGLE AUTH MODAL ---
+const GoogleAuthModal = ({ isOpen, onClose, onConfirm }) => {
+    const [mockEmail, setMockEmail] = useState('');
+    
+    if (!isOpen) return null;
+
+    const handleConfirm = (e) => {
+        e.preventDefault();
+        // Logic to extract Name from Email
+        const namePart = mockEmail.split('@')[0] || "User";
+        const cleanName = namePart
+            .split(/[._]/) // Split by dot or underscore
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize
+            .join(' ');
+            
+        onConfirm(mockEmail, cleanName);
+    };
+
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, zIndex: 100, 
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+            <div style={{
+                background: 'white', width: 400, borderRadius: 8, padding: 32,
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative'
+            }}>
+                <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, border: 'none', background: 'transparent', cursor: 'pointer' }}>
+                    <X size={20} color="#5f6368" />
+                </button>
+                
+                <div style={{ marginBottom: 16 }}>
+                    <Chrome size={48} color="#4285F4" />
+                </div>
+                
+                <h3 style={{ margin: '0 0 8px 0', color: '#202124', fontSize: 24, fontWeight: 500 }}>Sign in</h3>
+                <p style={{ margin: '0 0 32px 0', color: '#202124', fontSize: 16 }}>to continue to PG Monitor</p>
+                
+                <form onSubmit={handleConfirm} style={{ width: '100%' }}>
+                    <div style={{ marginBottom: 24, width: '100%' }}>
+                        <input 
+                            type="email" 
+                            required
+                            autoFocus
+                            placeholder="Email or phone" 
+                            value={mockEmail}
+                            onChange={(e) => setMockEmail(e.target.value)}
+                            style={{ 
+                                width: '100%', padding: '13px 12px', borderRadius: 4, 
+                                border: '1px solid #dadce0', fontSize: 16, color: '#202124', outline: 'none'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#1a73e8'}
+                            onBlur={(e) => e.target.style.borderColor = '#dadce0'}
+                        />
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', width: '100%' }}>
+                        <button type="button" onClick={onClose} style={{ color: '#1a73e8', background: 'transparent', border: 'none', fontWeight: 600, fontSize: 14, marginRight: 24, cursor: 'pointer' }}>
+                            Cancel
+                        </button>
+                        <button type="submit" style={{ background: '#1a73e8', color: 'white', border: 'none', padding: '10px 24px', borderRadius: 4, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+                            Next
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 // --- SPLIT SCREEN LOGIN PAGE ---
 const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
     const [loginId, setLoginId] = useState('');
     const [password, setPassword] = useState('');
+    const [showGoogleModal, setShowGoogleModal] = useState(false);
     
     const handleSubmit = (e) => {
       e.preventDefault();
       onLogin(loginId, password);
+    };
+
+    const handleGoogleSubmit = (email, name) => {
+        setShowGoogleModal(false);
+        onGoogleLogin(email, name);
     };
   
     return (
       <div style={{ height: '100vh', width: '100vw', display: 'flex', background: '#020617' }}>
         <LoginStyles />
         
+        {/* GOOGLE MOCK MODAL */}
+        <GoogleAuthModal 
+            isOpen={showGoogleModal} 
+            onClose={() => setShowGoogleModal(false)} 
+            onConfirm={handleGoogleSubmit}
+        />
+
         {/* LEFT SIDE: FUNCTIONAL */}
         <div style={{ 
           width: '40%', minWidth: 450, background: '#020617', 
@@ -455,7 +545,7 @@ const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
           </div>
 
           <button 
-            onClick={onGoogleLogin} disabled={loading}
+            onClick={() => setShowGoogleModal(true)} disabled={loading}
             style={{ 
               width: '100%', background: 'transparent', border: `1px solid ${THEME.grid}`, padding: '12px', borderRadius: 8,
               color: 'white', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14,
