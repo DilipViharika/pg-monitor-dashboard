@@ -127,7 +127,8 @@ const apiQueryData = [
 // --- AUTHENTICATION HOOK ---
 const useMockAuth = () => {
   const [currentUser, setCurrentUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true); // SEPARATE INIT STATE
+  const [loading, setLoading] = useState(false); // BUTTON LOADING STATE
   const [error, setError] = useState(null);
   
   const [allUsers, setAllUsers] = useState([
@@ -146,7 +147,8 @@ const useMockAuth = () => {
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
     }
-    setLoading(false);
+    // Only turn off initialization, don't affect button loading
+    setIsInitializing(false);
   }, []);
 
   const login = async (loginId, password) => {
@@ -210,7 +212,7 @@ const useMockAuth = () => {
     setAllUsers(prev => prev.filter(u => u.id !== userId));
   };
 
-  return { currentUser, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser };
+  return { currentUser, isInitializing, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser };
 };
 
 // --- GLOBAL SVG FILTERS ---
@@ -456,14 +458,21 @@ const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
             onClick={onGoogleLogin} disabled={loading}
             style={{ 
               width: '100%', background: 'transparent', border: `1px solid ${THEME.grid}`, padding: '12px', borderRadius: 8,
-              color: 'white', fontWeight: 500, cursor: 'pointer', fontSize: 14,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'background 0.2s'
+              color: 'white', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s',
+              opacity: loading ? 0.7 : 1
             }}
-            onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
-            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+            onMouseEnter={(e) => !loading && (e.target.style.background = 'rgba(255,255,255,0.05)')}
+            onMouseLeave={(e) => !loading && (e.target.style.background = 'transparent')}
           >
-            <Chrome size={18} />
-            Sign in with Google
+            {loading ? (
+                <span>Connecting...</span>
+            ) : (
+                <>
+                <Chrome size={18} />
+                Sign in with Google
+                </>
+            )}
           </button>
           
           <div style={{ marginTop: 'auto', paddingTop: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -611,7 +620,7 @@ const AIAgentView = ({ type, data }) => {
         <p style={{ fontSize: 13 }}>Select an item to analyze.</p>
       </div>
     );
-  
+    
     const renderSqlContext = () => {
       if (type === 'api') {
         return (
@@ -643,7 +652,7 @@ const AIAgentView = ({ type, data }) => {
           </>
         );
       }
-  
+
       if (type === 'unused') {
         return (
           <>
@@ -659,7 +668,7 @@ const AIAgentView = ({ type, data }) => {
       }
       return <>{data.problem_query || "Query optimization suggested..."}</>;
     };
-  
+    
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
         <div style={{ background: 'rgba(168, 85, 247, 0.1)', border: `1px solid ${THEME.ai}40`, borderRadius: 12, padding: 16 }}>
@@ -673,7 +682,7 @@ const AIAgentView = ({ type, data }) => {
              {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
           </p>
         </div>
-  
+
         <div style={{ flex: 1, background: '#0f172a', borderRadius: 12, border: `1px solid ${THEME.grid}`, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: '#1e293b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${THEME.grid}` }}>
             <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>CONTEXT.sql</span>
@@ -1326,9 +1335,10 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
 
 // --- APP WRAPPER ---
 const App = () => {
-    const { currentUser, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser } = useMockAuth();
+    const { currentUser, isInitializing, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser } = useMockAuth();
 
-    if (loading && !currentUser) {
+    // Only show full screen spinner on initialization, not on button actions
+    if (isInitializing) {
         return (
             <div style={{ height: '100vh', width: '100vw', background: THEME.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ width: 40, height: 40, border: `3px solid ${THEME.primary}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
