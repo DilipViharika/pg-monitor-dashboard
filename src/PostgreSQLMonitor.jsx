@@ -178,12 +178,10 @@ const useMockAuth = () => {
     });
   };
 
-  // UPDATED: Now accepts email and name to capture data dynamically
   const googleLogin = async (email, name) => {
     setLoading(true);
     return new Promise((resolve) => {
       setTimeout(() => {
-        // Capture the dynamic name and email provided by the modal
         const googleUser = { 
              id: 999 + Math.floor(Math.random() * 1000), 
              email: email || 'google_user@gmail.com', 
@@ -217,7 +215,18 @@ const useMockAuth = () => {
     setAllUsers(prev => prev.filter(u => u.id !== userId));
   };
 
-  return { currentUser, isInitializing, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser };
+  // ADDED: Function to update user details
+  const updateUser = (updatedData) => {
+    if (!currentUser) return;
+    const updatedUser = { ...currentUser, ...updatedData };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('pg_monitor_user', JSON.stringify(updatedUser));
+    
+    // Update in allUsers array for consistency during this session
+    setAllUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, ...updatedData } : u));
+  };
+
+  return { currentUser, isInitializing, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser, updateUser };
 };
 
 // --- GLOBAL SVG FILTERS ---
@@ -355,7 +364,7 @@ const LoginVisuals = () => {
   );
 };
 
-// --- NEW MOCK GOOGLE AUTH MODAL ---
+// --- GOOGLE AUTH MODAL ---
 const GoogleAuthModal = ({ isOpen, onClose, onConfirm }) => {
     const [mockEmail, setMockEmail] = useState('');
     
@@ -363,11 +372,10 @@ const GoogleAuthModal = ({ isOpen, onClose, onConfirm }) => {
 
     const handleConfirm = (e) => {
         e.preventDefault();
-        // Logic to extract Name from Email
         const namePart = mockEmail.split('@')[0] || "User";
         const cleanName = namePart
-            .split(/[._]/) // Split by dot or underscore
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize
+            .split(/[._]/)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
             
         onConfirm(mockEmail, cleanName);
@@ -427,7 +435,7 @@ const GoogleAuthModal = ({ isOpen, onClose, onConfirm }) => {
     );
 };
 
-// --- SPLIT SCREEN LOGIN PAGE ---
+// --- LOGIN PAGE ---
 const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
     const [loginId, setLoginId] = useState('');
     const [password, setPassword] = useState('');
@@ -447,7 +455,6 @@ const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
       <div style={{ height: '100vh', width: '100vw', display: 'flex', background: '#020617' }}>
         <LoginStyles />
         
-        {/* GOOGLE MOCK MODAL */}
         <GoogleAuthModal 
             isOpen={showGoogleModal} 
             onClose={() => setShowGoogleModal(false)} 
@@ -571,7 +578,7 @@ const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
           </div>
         </div>
   
-        {/* RIGHT SIDE: VISUALS (Hide on small screens via CSS media queries if needed) */}
+        {/* RIGHT SIDE: VISUALS */}
         <LoginVisuals />
       </div>
     );
@@ -769,7 +776,7 @@ const AIAgentView = ({ type, data }) => {
             <span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span>
           </div>
           <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>
-             {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
+              {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
           </p>
         </div>
 
@@ -783,7 +790,7 @@ const AIAgentView = ({ type, data }) => {
             </div>
           </div>
           <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1, overflowY: 'auto' }}>
-             {renderSqlContext()}
+              {renderSqlContext()}
           </div>
         </div>
       </div>
@@ -801,9 +808,9 @@ const EmptyState = ({ icon: Icon, text }) => (
 
 // --- TABS ---
 const UserManagementTab = ({ users, onCreateUser, onDeleteUser }) => {
-    const [formData, setFormData] = useState({
-        name: '', email: '', password: '', accessLevel: 'read',
-        allowedScreens: { overview: true, performance: false, resources: false, reliability: false, indexes: false, api: false }
+    const [formData, setFormData] = useState({ 
+        name: '', email: '', password: '', accessLevel: 'read', 
+        allowedScreens: { overview: true, performance: false, resources: false, reliability: false, indexes: false, api: false } 
     });
 
     const handleScreenChange = (screen) => {
@@ -887,14 +894,183 @@ const UserManagementTab = ({ users, onCreateUser, onDeleteUser }) => {
     );
 };
 
+// --- USER PROFILE MODAL ---
+const UserProfileModal = ({ isOpen, onClose, currentUser, onUpdate }) => {
+  const [activeTab, setActiveTab] = useState('general');
+  const [formData, setFormData] = useState({ ...currentUser, password: '', newPassword: '' });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) setFormData({ ...currentUser, password: '', newPassword: '' });
+  }, [isOpen, currentUser]);
+
+  if (!isOpen) return null;
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    // Simulate API call
+    setTimeout(() => {
+      onUpdate({
+        name: formData.name,
+        email: formData.email
+      });
+      setLoading(false);
+      onClose();
+    }, 1000);
+  };
+
+  const TabButton = ({ id, label, icon: Icon }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      style={{
+        flex: 1,
+        padding: '12px',
+        background: activeTab === id ? 'rgba(14, 165, 233, 0.1)' : 'transparent',
+        border: 'none',
+        borderBottom: `2px solid ${activeTab === id ? THEME.primary : 'transparent'}`,
+        color: activeTab === id ? THEME.primary : THEME.textMuted,
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        fontSize: 13,
+        fontWeight: 600,
+        transition: 'all 0.2s'
+      }}
+    >
+      <Icon size={16} /> {label}
+    </button>
+  );
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(2, 6, 23, 0.8)', backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center'
+    }}>
+      <div style={{
+        width: 500,
+        background: '#0f172a',
+        border: `1px solid ${THEME.grid}`,
+        borderRadius: 16,
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+        overflow: 'hidden',
+        animation: 'fadeIn 0.3s ease'
+      }}>
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${THEME.grid}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(2, 6, 23, 0.5)' }}>
+          <h2 style={{ margin: 0, fontSize: 18, color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <UserIcon size={20} color={THEME.primary} /> Edit Profile
+          </h2>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: THEME.textMuted, cursor: 'pointer' }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: `1px solid ${THEME.grid}` }}>
+          <TabButton id="general" label="General" icon={UserIcon} />
+          <TabButton id="security" label="Security" icon={Shield} />
+          <TabButton id="prefs" label="Preferences" icon={Settings} />
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: 24 }}>
+          {activeTab === 'general' && (
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 10 }}>
+                <div style={{ width: 80, height: 80, borderRadius: '50%', background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 700, color: 'white', boxShadow: `0 0 20px ${THEME.primary}40` }}>
+                  {formData.name.charAt(0)}
+                </div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{formData.name}</div>
+                  <div style={{ fontSize: 13, color: THEME.textMuted }}>{formData.role}</div>
+                  <button type="button" style={{ marginTop: 8, fontSize: 11, padding: '4px 10px', background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 4, color: THEME.primary, cursor: 'pointer' }}>Change Avatar</button>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Full Name</label>
+                <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Email Address</label>
+                <input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} />
+              </div>
+            </form>
+          )}
+
+          {activeTab === 'security' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ padding: 16, background: 'rgba(16, 185, 129, 0.1)', border: `1px solid ${THEME.success}40`, borderRadius: 8, display: 'flex', gap: 12 }}>
+                <Shield color={THEME.success} size={24} />
+                <div>
+                  <div style={{ color: THEME.success, fontWeight: 700, fontSize: 14 }}>Account is Secure</div>
+                  <div style={{ color: THEME.textMuted, fontSize: 12, marginTop: 4 }}>Two-factor authentication is currently active on your account.</div>
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Current Password</label>
+                <input type="password" placeholder="••••••••" style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>New Password</label>
+                <input type="password" placeholder="••••••••" style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'prefs' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: `1px solid ${THEME.grid}` }}>
+                <div>
+                  <div style={{ color: 'white', fontSize: 14 }}>Email Notifications</div>
+                  <div style={{ color: THEME.textMuted, fontSize: 12 }}>Receive daily summaries</div>
+                </div>
+                <div style={{ width: 40, height: 20, background: THEME.primary, borderRadius: 10, position: 'relative', cursor: 'pointer' }}>
+                  <div style={{ width: 16, height: 16, background: 'white', borderRadius: '50%', position: 'absolute', top: 2, right: 2 }}></div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
+                <div>
+                  <div style={{ color: 'white', fontSize: 14 }}>Theme Mode</div>
+                  <div style={{ color: THEME.textMuted, fontSize: 12 }}>Sync with system</div>
+                </div>
+                <div style={{ color: THEME.textMuted, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                   Dark (Default) <ChevronRight size={14} />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${THEME.grid}`, display: 'flex', justifyContent: 'flex-end', gap: 12, background: 'rgba(2, 6, 23, 0.3)' }}>
+          <button onClick={onClose} style={{ padding: '10px 16px', borderRadius: 8, background: 'transparent', border: `1px solid ${THEME.grid}`, color: 'white', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          <button onClick={handleSave} disabled={loading} style={{ padding: '10px 20px', borderRadius: 8, background: THEME.primary, border: 'none', color: 'white', cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: loading ? 0.7 : 1 }}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN DASHBOARD COMPONENT ---
-const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDeleteUser }) => {
+const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDeleteUser, onUpdateUser }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [indexViewMode, setIndexViewMode] = useState(null); 
   const [selectedIndexItem, setSelectedIndexItem] = useState(null); 
   const [reliabilityViewMode, setReliabilityViewMode] = useState(null); 
   const [selectedReliabilityItem, setSelectedReliabilityItem] = useState(null);
   const [selectedApiItem, setSelectedApiItem] = useState(null); 
+  
+  // NEW: State for Profile Modal
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const [metrics, setMetrics] = useState({
     avgQueryTime: 45.2, slowQueryCount: 23, qps: 1847, tps: 892,
@@ -1367,6 +1543,14 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
         `}
       </style>
       
+      {/* USER PROFILE MODAL */}
+      <UserProfileModal 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+        currentUser={currentUser}
+        onUpdate={onUpdateUser}
+      />
+      
       <div style={{ display: 'flex', height: '100vh', width: '100vw' }}>
         <aside style={{ width: isSidebarOpen ? 260 : 70, background: 'rgba(2, 6, 23, 0.95)', borderRight: `1px solid ${THEME.grid}`, display: 'flex', flexDirection: 'column', zIndex: 10, transition: 'width 0.3s ease' }}>
           <div style={{ padding: '24px 12px', borderBottom: `1px solid ${THEME.grid}`, display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
@@ -1387,9 +1571,17 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
                 <LogOut size={18} />{isSidebarOpen && <span>Logout</span>}
              </button>
              {isSidebarOpen && (
-                <div style={{ padding: '0 24px 24px' }}>
+                <div 
+                  onClick={() => setIsProfileOpen(true)} // Open profile on click
+                  style={{ padding: '0 24px 24px', cursor: 'pointer', transition: 'opacity 0.2s' }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = 0.8}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
+                >
                    <div style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>Uptime: {formatUptime(metrics.uptime)}</div>
-                   <div style={{ fontSize: 10, color: THEME.textMuted, marginTop: 4 }}>User: {currentUser?.name}</div>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                      <div style={{ fontSize: 10, color: THEME.textMain, fontWeight: 700 }}>{currentUser?.name}</div>
+                      <Settings size={10} color={THEME.textMuted} />
+                   </div>
                    <div style={{ fontSize: 10, color: currentUser?.accessLevel === 'write' ? THEME.success : THEME.warning }}>{currentUser?.accessLevel === 'write' ? '• Read & Write' : '• Read Only'}</div>
                 </div>
              )}
@@ -1425,7 +1617,19 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
 
 // --- APP WRAPPER ---
 const App = () => {
-    const { currentUser, isInitializing, loading, error, login, googleLogin, logout, allUsers, createUser, deleteUser } = useMockAuth();
+    const { 
+        currentUser, 
+        isInitializing, 
+        loading, 
+        error, 
+        login, 
+        googleLogin, 
+        logout, 
+        allUsers, 
+        createUser, 
+        deleteUser, 
+        updateUser 
+    } = useMockAuth();
 
     // Only show full screen spinner on initialization, not on button actions
     if (isInitializing) {
@@ -1441,7 +1645,16 @@ const App = () => {
         return <LoginPage onLogin={login} onGoogleLogin={googleLogin} loading={loading} error={error} />;
     }
 
-    return <PostgreSQLMonitor currentUser={currentUser} onLogout={logout} allUsers={allUsers} onCreateUser={createUser} onDeleteUser={deleteUser} />;
+    return (
+        <PostgreSQLMonitor 
+            currentUser={currentUser} 
+            onLogout={logout} 
+            allUsers={allUsers} 
+            onCreateUser={createUser} 
+            onDeleteUser={deleteUser}
+            onUpdateUser={updateUser}
+        />
+    );
 };
 
 export default App;
