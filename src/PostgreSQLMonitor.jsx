@@ -566,6 +566,46 @@ const UserProfileModal = ({ isOpen, onClose, currentUser, onUpdate }) => {
   );
 };
 
+// --- NEW SUB-COMPONENTS FOR OVERVIEW ---
+const LiveStatusBadge = () => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16, 185, 129, 0.1)', padding: '6px 12px', borderRadius: 20, border: `1px solid ${THEME.success}30` }}>
+    <div style={{ position: 'relative', width: 8, height: 8 }}>
+       <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: THEME.success }}></div>
+       <div style={{ position: 'absolute', inset: -4, borderRadius: '50%', background: THEME.success, opacity: 0.4, animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite' }}></div>
+       <style>{`@keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }`}</style>
+    </div>
+    <span style={{ color: THEME.success, fontSize: 12, fontWeight: 700, letterSpacing: 0.5 }}>LIVE STREAM</span>
+  </div>
+);
+
+const BentoMetric = ({ label, value, unit, icon: Icon, color, trend, delay }) => (
+  <div style={{ 
+      background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%)',
+      borderRadius: 16, 
+      padding: 20, 
+      border: `1px solid rgba(255,255,255,0.05)`,
+      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+      animation: `fadeIn 0.5s ease ${delay}s backwards`,
+      position: 'relative', overflow: 'hidden'
+  }}>
+     <div style={{ position: 'absolute', top: 0, right: 0, padding: 16, opacity: 0.1 }}><Icon size={48} color={color} /></div>
+     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <div style={{ padding: 6, borderRadius: 8, background: `${color}20`, color: color }}><Icon size={16} /></div>
+        <span style={{ fontSize: 11, color: THEME.textMuted, fontWeight: 600, textTransform: 'uppercase' }}>{label}</span>
+     </div>
+     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+        <span style={{ fontSize: 28, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{value}</span>
+        <span style={{ fontSize: 13, color: THEME.textMuted, marginBottom: 4 }}>{unit}</span>
+     </div>
+     {trend && (
+       <div style={{ marginTop: 8, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, color: trend > 0 ? THEME.success : THEME.danger }}>
+          {trend > 0 ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
+          <span>{Math.abs(trend)}% vs last hr</span>
+       </div>
+     )}
+  </div>
+);
+
 // --- MAIN DASHBOARD COMPONENT ---
 const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDeleteUser, onUpdateUser }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -663,67 +703,169 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
     </div>
   );
 
-  const OverviewTab = () => (
-    <>
-      <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr', gap: 24, marginBottom: 24 }}>
-        <GlassCard title="Cluster Activity (30 Days)">
-          <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={last30Days} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-              <ChartDefs />
-              <CartesianGrid strokeDasharray="3 3" stroke={THEME.grid} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} dy={10} />
-              <YAxis tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ paddingTop: 10 }} />
-              <Area type="monotone" dataKey="qps" stroke={THEME.primary} strokeWidth={3} fill="url(#primaryGradient)" name="QPS" filter="url(#neonGlow)" />
-              <Area type="monotone" dataKey="tps" stroke={THEME.success} strokeWidth={3} fill="url(#successGradient)" name="TPS" filter="url(#neonGlow)" />
-            </AreaChart>
-          </ResponsiveContainer>
+  // --- UPDATED OVERVIEW TAB (BENTO GRID STYLE) ---
+  const OverviewTab = () => {
+    // Local state for "Jitter" effect to simulate live data
+    const [liveMetrics, setLiveMetrics] = useState({ qps: metrics.qps, cpu: metrics.cpuUsage });
+    
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setLiveMetrics(prev => ({
+                qps: Math.max(100, Math.floor(prev.qps + (Math.random() * 100 - 50))),
+                cpu: Math.min(100, Math.max(0, parseFloat((prev.cpu + (Math.random() * 2 - 1)).toFixed(1))))
+            }));
+        }, 2000);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 40 }}>
+      
+      {/* 1. HERO SECTION: Big Chart + Live Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr', gap: 24, minHeight: 340 }}>
+        
+        {/* Main Chart: Uses a glass gradient background now */}
+        <GlassCard 
+            title="Cluster Activity" 
+            rightNode={<LiveStatusBadge />}
+            style={{ background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.8) 0%, rgba(2, 6, 23, 0.9) 100%)' }}
+        >
+          <div style={{ width: '100%', height: '100%', minHeight: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={last30Days} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                <ChartDefs />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} dy={10} />
+                <YAxis tick={{ fontSize: 11, fill: THEME.textMuted }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: 10 }} />
+                <Area type="monotone" dataKey="qps" stroke={THEME.primary} strokeWidth={3} fill="url(#primaryGradient)" name="Queries/Sec" filter="url(#neonGlow)" animationDuration={1000} />
+                <Area type="monotone" dataKey="tps" stroke={THEME.secondary} strokeWidth={3} fill="url(#barGradient)" name="Trans/Sec" filter="url(#neonGlow)" animationDuration={1000} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </GlassCard>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <MetricCard icon={Clock} title="Avg Query" value={metrics.avgQueryTime.toFixed(1)} unit="ms" color={THEME.warning} sparkData={sparklineData} />
-          <MetricCard icon={Zap} title="Current QPS" value={metrics.qps} color={THEME.primary} />
-          <MetricCard icon={Cpu} title="CPU Load" value={metrics.cpuUsage.toFixed(1)} unit="%" color={THEME.danger} />
+
+        {/* Right Side Stack: Bento Grid style */}
+        <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr 1fr', gap: 16 }}>
+             <BentoMetric 
+                label="Current Load" 
+                value={liveMetrics.qps} 
+                unit="QPS" 
+                icon={Zap} 
+                color={THEME.primary} 
+                trend={12.5} 
+                delay={0.1} 
+             />
+             <BentoMetric 
+                label="Avg Latency" 
+                value={metrics.avgQueryTime.toFixed(1)} 
+                unit="ms" 
+                icon={Clock} 
+                color={THEME.warning} 
+                trend={-2.4} 
+                delay={0.2} 
+             />
+             <BentoMetric 
+                label="CPU Health" 
+                value={liveMetrics.cpu} 
+                unit="%" 
+                icon={Cpu} 
+                color={liveMetrics.cpu > 80 ? THEME.danger : THEME.success} 
+                delay={0.3} 
+             />
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
-        <GlassCard title="Operations Breakdown">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {[
-              { label: 'SELECT', value: metrics.selectPerSec, color: THEME.primary },
-              { label: 'INSERT', value: metrics.insertPerSec, color: THEME.success },
-              { label: 'UPDATE', value: metrics.updatePerSec, color: THEME.warning },
-              { label: 'DELETE', value: metrics.deletePerSec, color: THEME.danger }
-            ].map((row) => (
-              <div key={row.label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8, color: THEME.textMain }}>
-                  <span>{row.label}</span>
-                  <span style={{ fontFamily: 'monospace' }}>{row.value}/s</span>
+
+      {/* 2. SECONDARY METRICS ROW */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
+          {/* Read/Write Ratio - Enhanced Visuals */}
+          <GlassCard title="Workload Type" style={{ gridColumn: 'span 1' }}>
+             <div style={{ position: 'relative', height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                        data={[{ value: metrics.readWriteRatio }, { value: 100 - metrics.readWriteRatio }]} 
+                        cx="50%" cy="50%" innerRadius={60} outerRadius={80} 
+                        startAngle={90} endAngle={-270} dataKey="value" stroke="none"
+                        paddingAngle={5}
+                    >
+                      <Cell fill={THEME.primary} filter="url(#neonGlow)" />
+                      <Cell fill="rgba(255,255,255,0.05)" />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ position: 'absolute', textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#fff' }}>{metrics.readWriteRatio}%</div>
+                    <div style={{ fontSize: 10, color: THEME.primary, letterSpacing: 1 }}>READS</div>
                 </div>
-                <NeonProgressBar value={row.value} max={2000} color={row.color} />
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-        <GlassCard title="Read / Write Ratio">
-          <div style={{ position: 'relative', height: 240 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={[{ value: metrics.readWriteRatio }, { value: 100 - metrics.readWriteRatio }]} cx="50%" cy="50%" innerRadius={70} outerRadius={90} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
-                  <Cell fill={THEME.primary} filter="url(#neonGlow)" />
-                  <Cell fill="#1e293b" />
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-              <div style={{ fontSize: 32, fontWeight: 700, color: THEME.textMain }}>{metrics.readWriteRatio}%</div>
-              <div style={{ fontSize: 11, color: THEME.primary, letterSpacing: 2 }}>READS</div>
+             </div>
+          </GlassCard>
+
+          {/* Operations Breakdown - Cleaner Bars */}
+          <GlassCard title="Throughput Breakdown" style={{ gridColumn: 'span 2' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30, height: '100%', alignItems: 'center' }}>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6, color: THEME.textMuted }}>
+                        <span>SELECT</span><span style={{color:'#fff'}}>{metrics.selectPerSec}/s</span>
+                     </div>
+                     <NeonProgressBar value={metrics.selectPerSec} max={2000} color={THEME.primary} />
+                  </div>
+                  <div>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6, color: THEME.textMuted }}>
+                        <span>INSERT</span><span style={{color:'#fff'}}>{metrics.insertPerSec}/s</span>
+                     </div>
+                     <NeonProgressBar value={metrics.insertPerSec} max={2000} color={THEME.success} />
+                  </div>
+               </div>
+               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6, color: THEME.textMuted }}>
+                        <span>UPDATE</span><span style={{color:'#fff'}}>{metrics.updatePerSec}/s</span>
+                     </div>
+                     <NeonProgressBar value={metrics.updatePerSec} max={2000} color={THEME.warning} />
+                  </div>
+                  <div>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6, color: THEME.textMuted }}>
+                        <span>DELETE</span><span style={{color:'#fff'}}>{metrics.deletePerSec}/s</span>
+                     </div>
+                     <NeonProgressBar value={metrics.deletePerSec} max={2000} color={THEME.danger} />
+                  </div>
+               </div>
             </div>
-          </div>
-        </GlassCard>
+          </GlassCard>
+
+          {/* System Health Summary */}
+          <GlassCard title="System Health" style={{ gridColumn: 'span 1' }}>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%', justifyContent: 'center' }}>
+                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 8, height: 8, background: THEME.success, borderRadius: '50%', boxShadow: `0 0 8px ${THEME.success}` }} />
+                        <span style={{ fontSize: 13, color: '#fff' }}>Uptime</span>
+                    </div>
+                    <span style={{ fontFamily: 'monospace', fontSize: 13, color: THEME.textMuted }}>99.99%</span>
+                 </div>
+                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 8, height: 8, background: THEME.warning, borderRadius: '50%', boxShadow: `0 0 8px ${THEME.warning}` }} />
+                        <span style={{ fontSize: 13, color: '#fff' }}>Replicas</span>
+                    </div>
+                    <span style={{ fontFamily: 'monospace', fontSize: 13, color: THEME.textMuted }}>2 / 2</span>
+                 </div>
+                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 8, height: 8, background: THEME.success, borderRadius: '50%', boxShadow: `0 0 8px ${THEME.success}` }} />
+                        <span style={{ fontSize: 13, color: '#fff' }}>Storage</span>
+                    </div>
+                    <span style={{ fontFamily: 'monospace', fontSize: 13, color: THEME.textMuted }}>Healthy</span>
+                 </div>
+             </div>
+          </GlassCard>
       </div>
-    </>
+    </div>
   );
+  };
 
   const PerformanceTab = () => (
     <>
