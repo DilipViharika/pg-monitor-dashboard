@@ -34,36 +34,28 @@ const mockConnections = [
   { pid: 14099, user: 'app_user', db: 'production', app: 'NodeJS Backend', state: 'idle in transaction', duration: '00:15:23', query: 'UPDATE orders SET status = \'processing\' WHERE id = 4591;', ip: '10.0.0.12' },
   { pid: 15102, user: 'analytics', db: 'warehouse', app: 'Metabase', state: 'active', duration: '00:42:10', query: 'SELECT region, SUM(amount) FROM sales GROUP BY region ORDER BY 2 DESC;', ip: '10.0.0.8' },
   { pid: 15201, user: 'app_user', db: 'production', app: 'Go Worker', state: 'active', duration: '00:00:01', query: 'INSERT INTO logs (level, msg) VALUES (\'info\', \'Job started\');', ip: '10.0.0.15' },
-  { pid: 15333, user: 'postgres', db: 'postgres', app: 'psql', state: 'idle', duration: '01:20:00', query: '-- idle connection', ip: 'local' },
-  { pid: 15440, user: 'etl_service', db: 'warehouse', app: 'Python Script', state: 'active', duration: '00:03:45', query: 'COPY transactions FROM \'/tmp/dump.csv\' WITH CSV HEADER;', ip: '10.0.0.22' },
 ];
 
 const mockErrorLogs = [
   { id: 101, type: 'Connection Timeout', timestamp: '10:42:15', user: 'app_svc', db: 'production', query: 'SELECT * FROM large_table_v2...', detail: 'Client closed connection before response' },
   { id: 102, type: 'Deadlock Detected', timestamp: '10:45:22', user: 'worker_01', db: 'warehouse', query: 'UPDATE inventory SET stock = stock - 1...', detail: 'Process 14022 waits for ShareLock on transaction 99201' },
   { id: 103, type: 'Query Timeout', timestamp: '11:01:05', user: 'analytics', db: 'warehouse', query: 'SELECT * FROM logs WHERE created_at < ...', detail: 'Canceling statement due to statement_timeout' },
-  { id: 104, type: 'Connection Timeout', timestamp: '11:15:30', user: 'web_client', db: 'production', query: 'AUTH CHECK...', detail: 'terminating connection due to idle-in-transaction timeout' },
-  { id: 105, type: 'Constraint Violation', timestamp: '11:20:12', user: 'api_write', db: 'production', query: 'INSERT INTO users (email) VALUES...', detail: 'Key (email)=(test@example.com) already exists' },
 ];
 
 const missingIndexesData = [
   { id: 1, table: 'orders', column: 'customer_id', impact: 'Critical', scans: '1.2M', improvement: '94%', recommendation: 'Create B-Tree index concurrently on customer_id. Estimated creation time: 4s.' },
   { id: 2, table: 'transactions', column: 'created_at', impact: 'High', scans: '850k', improvement: '98%', recommendation: 'BRIN index recommended for time-series data on created_at to save space.' },
   { id: 3, table: 'audit_logs', column: 'user_id', impact: 'Medium', scans: '420k', improvement: '75%', recommendation: 'Standard index recommended. High read volume detected on user dashboard.' },
-  { id: 4, table: 'products', column: 'category_id', impact: 'High', scans: '310k', improvement: '88%', recommendation: 'Foreign key column missing index. Essential for join performance.' },
 ];
 
 const unusedIndexesData = [
   { id: 1, table: 'users', indexName: 'idx_users_last_login_old', size: '450MB', lastUsed: '2023-11-04', recommendation: 'Safe to drop. Index has not been accessed in over 90 days.' },
   { id: 2, table: 'orders', indexName: 'idx_orders_temp_v2', size: '1.2GB', lastUsed: 'Never', recommendation: 'High Impact: Drop immediately. 1.2GB of wasted storage and write overhead.' },
-  { id: 3, table: 'inventory', indexName: 'idx_inv_warehouse_loc', size: '120MB', lastUsed: '2024-01-15', recommendation: 'Monitor for 2 more weeks. Low usage pattern detected.' },
-  { id: 4, table: 'logs', indexName: 'idx_logs_composite_ts', size: '890MB', lastUsed: '2023-12-20', recommendation: 'Consider partial index instead of full composite index to reduce bloat.' },
 ];
 
 const lowHitRatioData = [
   { id: 1, table: 'large_audit_logs', ratio: 12, total_scans: '5.4M', problem_query: "SELECT * FROM large_audit_logs WHERE event_data LIKE '%error%'", recommendation: 'Leading wildcard forces Seq Scan. Use Trigram Index (pg_trgm).' },
   { id: 2, table: 'payment_history', ratio: 45, total_scans: '890k', problem_query: "SELECT sum(amt) FROM payment_history WHERE created_at::date = now()::date", recommendation: 'Casting prevents index usage. Use WHERE created_at >= current_date.' },
-  { id: 3, table: 'archived_orders', ratio: 28, total_scans: '1.1M', problem_query: "SELECT * FROM archived_orders ORDER BY id DESC LIMIT 50", recommendation: 'High bloat detected (45%). Run VACUUM ANALYZE immediately.' },
 ];
 
 const apiQueryData = [
@@ -76,8 +68,7 @@ const apiQueryData = [
     db_time_pct: 85,
     queries: [
       { sql: 'SELECT count(*) FROM orders WHERE status = \'pending\'', calls: 1, duration: 120 },
-      { sql: 'SELECT sum(total) FROM payments WHERE created_at > NOW() - INTERVAL \'24h\'', calls: 1, duration: 145 },
-      { sql: 'SELECT * FROM notifications WHERE read = false LIMIT 5', calls: 1, duration: 15 }
+      { sql: 'SELECT sum(total) FROM payments WHERE created_at > NOW() - INTERVAL \'24h\'', calls: 1, duration: 145 }
     ],
     ai_insight: 'Heavy aggregation on payments table. Consider creating a materialized view for daily stats.'
   },
@@ -92,35 +83,9 @@ const apiQueryData = [
       { sql: 'BEGIN TRANSACTION', calls: 1, duration: 2 },
       { sql: 'SELECT stock FROM products WHERE id = $1 FOR UPDATE', calls: 5, duration: 45 },
       { sql: 'INSERT INTO orders (...) VALUES (...)', calls: 1, duration: 12 },
-      { sql: 'UPDATE products SET stock = stock - 1 WHERE id = $1', calls: 5, duration: 55 },
       { sql: 'COMMIT', calls: 1, duration: 5 }
     ],
     ai_insight: 'Detected N+1 Query issue. The product stock check runs 5 times in a loop. Batch these into a single query.'
-  },
-  { 
-    id: 'api_3', 
-    method: 'GET', 
-    endpoint: '/api/v1/users/profile', 
-    avg_duration: 45, 
-    calls_per_min: 2100,
-    db_time_pct: 30,
-    queries: [
-      { sql: 'SELECT * FROM users WHERE id = $1', calls: 1, duration: 5 },
-      { sql: 'SELECT * FROM permissions WHERE role_id = $1', calls: 1, duration: 4 }
-    ],
-    ai_insight: 'Highly optimized. Low database footprint. Cache hit ratio is excellent.'
-  },
-  { 
-    id: 'api_4', 
-    method: 'GET', 
-    endpoint: '/api/v1/search', 
-    avg_duration: 850, 
-    calls_per_min: 45,
-    db_time_pct: 95,
-    queries: [
-      { sql: 'SELECT * FROM products WHERE name ILIKE \'%$1%\'', calls: 1, duration: 810 }
-    ],
-    ai_insight: 'Critical: Full table scan triggered by ILIKE with leading wildcard. Implement Full-Text Search (tsvector).'
   }
 ];
 
@@ -215,14 +180,11 @@ const useMockAuth = () => {
     setAllUsers(prev => prev.filter(u => u.id !== userId));
   };
 
-  // ADDED: Function to update user details
   const updateUser = (updatedData) => {
     if (!currentUser) return;
     const updatedUser = { ...currentUser, ...updatedData };
     setCurrentUser(updatedUser);
     localStorage.setItem('pg_monitor_user', JSON.stringify(updatedUser));
-    
-    // Update in allUsers array for consistency during this session
     setAllUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, ...updatedData } : u));
   };
 
@@ -274,55 +236,22 @@ const LoginStyles = () => (
     `}</style>
 );
 
-// --- LOGIN VISUALS COMPONENT ---
+// --- VISUAL COMPONENTS ---
 const LoginVisuals = () => {
   const data = Array.from({ length: 40 }, (_, i) => ({
     time: i,
     value: 40 + Math.random() * 40 + (Math.sin(i / 5) * 20),
     value2: 30 + Math.random() * 20
   }));
-
   return (
-    <div style={{ 
-      flex: 1, 
-      position: 'relative', 
-      background: 'linear-gradient(135deg, #0f172a 0%, #020617 100%)', 
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 60
-    }}>
+    <div style={{ flex: 1, position: 'relative', background: 'linear-gradient(135deg, #0f172a 0%, #020617 100%)', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 60 }}>
       <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.1) 0%, transparent 50%)' }} />
       <div className="scanline-overlay" style={{ position: 'absolute', inset: 0, opacity: 0.1 }} />
-      
-      <div style={{ 
-        width: '100%', 
-        maxWidth: 600,
-        background: 'rgba(15, 23, 42, 0.6)',
-        border: `1px solid ${THEME.glassBorder}`,
-        borderRadius: 24,
-        padding: 30,
-        backdropFilter: 'blur(20px)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        position: 'relative',
-        zIndex: 10
-      }}>
+      <div style={{ width: '100%', maxWidth: 600, background: 'rgba(15, 23, 42, 0.6)', border: `1px solid ${THEME.glassBorder}`, borderRadius: 24, padding: 30, backdropFilter: 'blur(20px)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', position: 'relative', zIndex: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-           <div>
-             <div style={{ color: THEME.textMuted, fontSize: 12, fontWeight: 600 }}>LIVE CLUSTER HEALTH</div>
-             <div style={{ color: THEME.textMain, fontSize: 24, fontWeight: 700 }}>US-East-1 Prod</div>
-           </div>
-           <div style={{ textAlign: 'right' }}>
-             <div style={{ color: THEME.success, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-               <div style={{ width: 8, height: 8, background: THEME.success, borderRadius: '50%', boxShadow: `0 0 10px ${THEME.success}` }} />
-               OPERATIONAL
-             </div>
-             <div style={{ color: THEME.textMuted, fontSize: 12, marginTop: 4 }}>99.99% Uptime</div>
-           </div>
+           <div><div style={{ color: THEME.textMuted, fontSize: 12, fontWeight: 600 }}>LIVE CLUSTER HEALTH</div><div style={{ color: THEME.textMain, fontSize: 24, fontWeight: 700 }}>US-East-1 Prod</div></div>
+           <div style={{ textAlign: 'right' }}><div style={{ color: THEME.success, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}><div style={{ width: 8, height: 8, background: THEME.success, borderRadius: '50%', boxShadow: `0 0 10px ${THEME.success}` }} />OPERATIONAL</div><div style={{ color: THEME.textMuted, fontSize: 12, marginTop: 4 }}>99.99% Uptime</div></div>
         </div>
-
         <div style={{ height: 200, width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
@@ -337,97 +266,43 @@ const LoginVisuals = () => {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        
         <div style={{ display: 'flex', gap: 16, marginTop: 20, paddingTop: 20, borderTop: `1px solid ${THEME.grid}` }}>
-           <div style={{ flex: 1 }}>
-             <div style={{ color: THEME.textMuted, fontSize: 11 }}>ACTIVE QUERIES</div>
-             <div style={{ color: '#fff', fontSize: 18, fontWeight: 600 }}>1,842</div>
-           </div>
-           <div style={{ flex: 1 }}>
-             <div style={{ color: THEME.textMuted, fontSize: 11 }}>WRITE LATENCY</div>
-             <div style={{ color: '#fff', fontSize: 18, fontWeight: 600 }}>4.2ms</div>
-           </div>
-           <div style={{ flex: 1 }}>
-             <div style={{ color: THEME.textMuted, fontSize: 11 }}>ANOMALIES</div>
-             <div style={{ color: THEME.success, fontSize: 18, fontWeight: 600 }}>0</div>
-           </div>
+           <div style={{ flex: 1 }}><div style={{ color: THEME.textMuted, fontSize: 11 }}>ACTIVE QUERIES</div><div style={{ color: '#fff', fontSize: 18, fontWeight: 600 }}>1,842</div></div>
+           <div style={{ flex: 1 }}><div style={{ color: THEME.textMuted, fontSize: 11 }}>WRITE LATENCY</div><div style={{ color: '#fff', fontSize: 18, fontWeight: 600 }}>4.2ms</div></div>
+           <div style={{ flex: 1 }}><div style={{ color: THEME.textMuted, fontSize: 11 }}>ANOMALIES</div><div style={{ color: THEME.success, fontSize: 18, fontWeight: 600 }}>0</div></div>
         </div>
       </div>
-
       <div style={{ marginTop: 40, textAlign: 'center', zIndex: 10 }}>
         <h2 style={{ fontSize: 28, fontWeight: 700, color: 'white', marginBottom: 10 }}>Total Observability. Zero Overhead.</h2>
-        <p style={{ color: THEME.textMuted, fontSize: 16, maxWidth: 500, lineHeight: 1.5 }}>
-          Monitor your PostgreSQL clusters with granular query analysis, index recommendations, and AI-driven insights.
-        </p>
+        <p style={{ color: THEME.textMuted, fontSize: 16, maxWidth: 500, lineHeight: 1.5 }}>Monitor your PostgreSQL clusters with granular query analysis, index recommendations, and AI-driven insights.</p>
       </div>
     </div>
   );
 };
 
-// --- GOOGLE AUTH MODAL ---
 const GoogleAuthModal = ({ isOpen, onClose, onConfirm }) => {
     const [mockEmail, setMockEmail] = useState('');
-    
     if (!isOpen) return null;
-
     const handleConfirm = (e) => {
         e.preventDefault();
         const namePart = mockEmail.split('@')[0] || "User";
-        const cleanName = namePart
-            .split(/[._]/)
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-            
+        const cleanName = namePart.split(/[._]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
         onConfirm(mockEmail, cleanName);
     };
-
     return (
-        <div style={{
-            position: 'fixed', inset: 0, zIndex: 100, 
-            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-            <div style={{
-                background: 'white', width: 400, borderRadius: 8, padding: 32,
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative'
-            }}>
-                <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, border: 'none', background: 'transparent', cursor: 'pointer' }}>
-                    <X size={20} color="#5f6368" />
-                </button>
-                
-                <div style={{ marginBottom: 16 }}>
-                    <Chrome size={48} color="#4285F4" />
-                </div>
-                
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'white', width: 400, borderRadius: 8, padding: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }}>
+                <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, border: 'none', background: 'transparent', cursor: 'pointer' }}><X size={20} color="#5f6368" /></button>
+                <div style={{ marginBottom: 16 }}><Chrome size={48} color="#4285F4" /></div>
                 <h3 style={{ margin: '0 0 8px 0', color: '#202124', fontSize: 24, fontWeight: 500 }}>Sign in</h3>
                 <p style={{ margin: '0 0 32px 0', color: '#202124', fontSize: 16 }}>to continue to PG Monitor</p>
-                
                 <form onSubmit={handleConfirm} style={{ width: '100%' }}>
                     <div style={{ marginBottom: 24, width: '100%' }}>
-                        <input 
-                            type="email" 
-                            required
-                            autoFocus
-                            placeholder="Email or phone" 
-                            value={mockEmail}
-                            onChange={(e) => setMockEmail(e.target.value)}
-                            style={{ 
-                                width: '100%', padding: '13px 12px', borderRadius: 4, 
-                                border: '1px solid #dadce0', fontSize: 16, color: '#202124', outline: 'none'
-                            }}
-                            onFocus={(e) => e.target.style.borderColor = '#1a73e8'}
-                            onBlur={(e) => e.target.style.borderColor = '#dadce0'}
-                        />
+                        <input type="email" required autoFocus placeholder="Email or phone" value={mockEmail} onChange={(e) => setMockEmail(e.target.value)} style={{ width: '100%', padding: '13px 12px', borderRadius: 4, border: '1px solid #dadce0', fontSize: 16, color: '#202124', outline: 'none' }} onFocus={(e) => e.target.style.borderColor = '#1a73e8'} onBlur={(e) => e.target.style.borderColor = '#dadce0'} />
                     </div>
-                    
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', width: '100%' }}>
-                        <button type="button" onClick={onClose} style={{ color: '#1a73e8', background: 'transparent', border: 'none', fontWeight: 600, fontSize: 14, marginRight: 24, cursor: 'pointer' }}>
-                            Cancel
-                        </button>
-                        <button type="submit" style={{ background: '#1a73e8', color: 'white', border: 'none', padding: '10px 24px', borderRadius: 4, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-                            Next
-                        </button>
+                        <button type="button" onClick={onClose} style={{ color: '#1a73e8', background: 'transparent', border: 'none', fontWeight: 600, fontSize: 14, marginRight: 24, cursor: 'pointer' }}>Cancel</button>
+                        <button type="submit" style={{ background: '#1a73e8', color: 'white', border: 'none', padding: '10px 24px', borderRadius: 4, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>Next</button>
                     </div>
                 </form>
             </div>
@@ -435,177 +310,52 @@ const GoogleAuthModal = ({ isOpen, onClose, onConfirm }) => {
     );
 };
 
-// --- LOGIN PAGE ---
 const LoginPage = ({ onLogin, onGoogleLogin, loading, error }) => {
     const [loginId, setLoginId] = useState('');
     const [password, setPassword] = useState('');
     const [showGoogleModal, setShowGoogleModal] = useState(false);
     
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      onLogin(loginId, password);
-    };
-
-    const handleGoogleSubmit = (email, name) => {
-        setShowGoogleModal(false);
-        onGoogleLogin(email, name);
-    };
+    const handleSubmit = (e) => { e.preventDefault(); onLogin(loginId, password); };
+    const handleGoogleSubmit = (email, name) => { setShowGoogleModal(false); onGoogleLogin(email, name); };
   
     return (
       <div style={{ height: '100vh', width: '100vw', display: 'flex', background: '#020617' }}>
         <LoginStyles />
-        
-        <GoogleAuthModal 
-            isOpen={showGoogleModal} 
-            onClose={() => setShowGoogleModal(false)} 
-            onConfirm={handleGoogleSubmit}
-        />
-
-        {/* LEFT SIDE: FUNCTIONAL */}
-        <div style={{ 
-          width: '40%', minWidth: 450, background: '#020617', 
-          display: 'flex', flexDirection: 'column', justifyContent: 'center', 
-          padding: '0 80px', borderRight: `1px solid ${THEME.grid}`, position: 'relative'
-        }}>
-          
+        <GoogleAuthModal isOpen={showGoogleModal} onClose={() => setShowGoogleModal(false)} onConfirm={handleGoogleSubmit} />
+        <div style={{ width: '40%', minWidth: 450, background: '#020617', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 80px', borderRight: `1px solid ${THEME.grid}`, position: 'relative' }}>
           <div style={{ marginBottom: 40, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ 
-              width: 40, height: 40, borderRadius: 10, 
-              background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: `0 0 20px ${THEME.primary}40`
-            }}>
-              <Database color="#fff" size={20} />
-            </div>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 20px ${THEME.primary}40` }}><Database color="#fff" size={20} /></div>
             <span style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>PG Monitor</span>
           </div>
-
           <h1 style={{ fontSize: 32, fontWeight: 700, color: '#fff', marginBottom: 12 }}>Welcome back</h1>
           <p style={{ color: THEME.textMuted, marginBottom: 40 }}>Enter your credentials to access the workspace.</p>
-  
-          {error && (
-            <div style={{ 
-              background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, 
-              color: '#fca5a5', padding: '12px 16px', borderRadius: 8, fontSize: 13, 
-              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24
-            }}>
-              <AlertTriangle size={16} /> {error}
-            </div>
-          )}
-  
+          {error && (<div style={{ background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, color: '#fca5a5', padding: '12px 16px', borderRadius: 8, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}><AlertTriangle size={16} /> {error}</div>)}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div className="login-input-group" style={{ position: 'relative' }}>
                <label style={{ display: 'block', marginBottom: 8, fontSize: 12, fontWeight: 600, color: THEME.textMuted }}>WORK EMAIL</label>
-               <input 
-                 type="text" required
-                 value={loginId} onChange={(e) => setLoginId(e.target.value)}
-                 placeholder="name@company.com"
-                 style={{ 
-                   width: '100%', padding: '12px 16px', 
-                   background: 'rgba(255, 255, 255, 0.03)', border: `1px solid ${THEME.grid}`, 
-                   borderRadius: 8, color: 'white', fontSize: 14, outline: 'none',
-                   transition: 'all 0.2s'
-                 }}
-                 onFocus={(e) => { e.target.style.borderColor = THEME.primary; }}
-                 onBlur={(e) => { e.target.style.borderColor = THEME.grid; }}
-               />
+               <input type="text" required value={loginId} onChange={(e) => setLoginId(e.target.value)} placeholder="name@company.com" style={{ width: '100%', padding: '12px 16px', background: 'rgba(255, 255, 255, 0.03)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', fontSize: 14, outline: 'none', transition: 'all 0.2s' }} onFocus={(e) => { e.target.style.borderColor = THEME.primary; }} onBlur={(e) => { e.target.style.borderColor = THEME.grid; }} />
             </div>
-  
             <div className="login-input-group" style={{ position: 'relative' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                 <label style={{ fontSize: 12, fontWeight: 600, color: THEME.textMuted }}>PASSWORD</label>
-                 <a href="#" style={{ fontSize: 12, color: THEME.primary, textDecoration: 'none' }}>Forgot password?</a>
-               </div>
-               <input 
-                 type="password" required
-                 value={password} onChange={(e) => setPassword(e.target.value)}
-                 placeholder="••••••••"
-                 style={{ 
-                   width: '100%', padding: '12px 16px', 
-                   background: 'rgba(255, 255, 255, 0.03)', border: `1px solid ${THEME.grid}`, 
-                   borderRadius: 8, color: 'white', fontSize: 14, outline: 'none',
-                   transition: 'all 0.2s'
-                 }}
-                 onFocus={(e) => { e.target.style.borderColor = THEME.primary; }}
-                 onBlur={(e) => { e.target.style.borderColor = THEME.grid; }}
-               />
+               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><label style={{ fontSize: 12, fontWeight: 600, color: THEME.textMuted }}>PASSWORD</label><a href="#" style={{ fontSize: 12, color: THEME.primary, textDecoration: 'none' }}>Forgot password?</a></div>
+               <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={{ width: '100%', padding: '12px 16px', background: 'rgba(255, 255, 255, 0.03)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', fontSize: 14, outline: 'none', transition: 'all 0.2s' }} onFocus={(e) => { e.target.style.borderColor = THEME.primary; }} onBlur={(e) => { e.target.style.borderColor = THEME.grid; }} />
             </div>
-  
-            <button 
-              type="submit" disabled={loading}
-              style={{ 
-                marginTop: 10, background: THEME.primary, border: 'none', padding: '14px', borderRadius: 8, 
-                color: '#fff', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14,
-                opacity: loading ? 0.7 : 1, transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => !loading && (e.target.style.background = '#0284c7')}
-              onMouseLeave={(e) => !loading && (e.target.style.background = THEME.primary)}
-            >
-              {loading ? 'Authenticating...' : 'Sign in'}
-            </button>
+            <button type="submit" disabled={loading} style={{ marginTop: 10, background: THEME.primary, border: 'none', padding: '14px', borderRadius: 8, color: '#fff', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, opacity: loading ? 0.7 : 1, transition: 'all 0.2s' }} onMouseEnter={(e) => !loading && (e.target.style.background = '#0284c7')} onMouseLeave={(e) => !loading && (e.target.style.background = THEME.primary)}>{loading ? 'Authenticating...' : 'Sign in'}</button>
           </form>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '30px 0' }}>
-            <div style={{ flex: 1, height: 1, background: THEME.grid }} />
-            <span style={{ color: THEME.textMuted, fontSize: 12 }}>OR</span>
-            <div style={{ flex: 1, height: 1, background: THEME.grid }} />
-          </div>
-
-          <button 
-            onClick={() => setShowGoogleModal(true)} disabled={loading}
-            style={{ 
-              width: '100%', background: 'transparent', border: `1px solid ${THEME.grid}`, padding: '12px', borderRadius: 8,
-              color: 'white', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s',
-              opacity: loading ? 0.7 : 1
-            }}
-            onMouseEnter={(e) => !loading && (e.target.style.background = 'rgba(255,255,255,0.05)')}
-            onMouseLeave={(e) => !loading && (e.target.style.background = 'transparent')}
-          >
-            {loading ? (
-                <span>Connecting...</span>
-            ) : (
-                <>
-                <Chrome size={18} />
-                Sign in with Google
-                </>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '30px 0' }}><div style={{ flex: 1, height: 1, background: THEME.grid }} /><span style={{ color: THEME.textMuted, fontSize: 12 }}>OR</span><div style={{ flex: 1, height: 1, background: THEME.grid }} /></div>
+          <button onClick={() => setShowGoogleModal(true)} disabled={loading} style={{ width: '100%', background: 'transparent', border: `1px solid ${THEME.grid}`, padding: '12px', borderRadius: 8, color: 'white', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', opacity: loading ? 0.7 : 1 }} onMouseEnter={(e) => !loading && (e.target.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={(e) => !loading && (e.target.style.background = 'transparent')}>
+            {loading ? (<span>Connecting...</span>) : (<><Chrome size={18} />Sign in with Google</>)}
           </button>
-          
-          <div style={{ marginTop: 'auto', paddingTop: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-             <div style={{ width: 6, height: 6, borderRadius: '50%', background: THEME.success, boxShadow: `0 0 5px ${THEME.success}` }} />
-             <span style={{ color: THEME.textMuted, fontSize: 12 }}>All systems operational</span>
-          </div>
+          <div style={{ marginTop: 'auto', paddingTop: 20, display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ width: 6, height: 6, borderRadius: '50%', background: THEME.success, boxShadow: `0 0 5px ${THEME.success}` }} /><span style={{ color: THEME.textMuted, fontSize: 12 }}>All systems operational</span></div>
         </div>
-  
-        {/* RIGHT SIDE: VISUALS */}
         <LoginVisuals />
       </div>
     );
 };
 
-// --- REUSABLE COMPONENTS ---
 const GlassCard = ({ children, title, rightNode, style }) => (
-  <div
-    style={{
-      background: THEME.glass,
-      backdropFilter: 'blur(12px)',
-      borderRadius: 16,
-      border: `1px solid ${THEME.glassBorder}`,
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-      padding: '24px',
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      position: 'relative',
-      overflow: 'hidden',
-      ...style
-    }}
-  >
+  <div style={{ background: THEME.glass, backdropFilter: 'blur(12px)', borderRadius: 16, border: `1px solid ${THEME.glassBorder}`, boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)', padding: '24px', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden', ...style }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, zIndex: 2 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 700, color: THEME.textMain, textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
-        {title}
-      </h3>
+      <h3 style={{ fontSize: 14, fontWeight: 700, color: THEME.textMain, textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>{title}</h3>
       {rightNode}
     </div>
     <div style={{ flex: 1, minHeight: 0, position: 'relative', zIndex: 1 }}>{children}</div>
@@ -614,48 +364,16 @@ const GlassCard = ({ children, title, rightNode, style }) => (
 );
 
 const MetricCard = ({ icon: Icon, title, value, unit, subtitle, color = THEME.primary, onClick, active, sparkData }) => (
-  <div
-    onClick={onClick}
-    style={{
-      background: active 
-        ? `linear-gradient(180deg, ${color}20 0%, ${color}10 100%)`
-        : 'linear-gradient(180deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%)',
-      borderRadius: 12,
-      border: active ? `1px solid ${color}` : `1px solid ${THEME.glassBorder}`,
-      padding: '20px',
-      position: 'relative',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      gap: 12,
-      cursor: onClick ? 'pointer' : 'default',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      transform: active ? 'translateY(-2px)' : 'none',
-      boxShadow: active ? `0 10px 25px -5px ${color}30` : 'none'
-    }}
-  >
+  <div onClick={onClick} style={{ background: active ? `linear-gradient(180deg, ${color}20 0%, ${color}10 100%)` : 'linear-gradient(180deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%)', borderRadius: 12, border: active ? `1px solid ${color}` : `1px solid ${THEME.glassBorder}`, padding: '20px', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12, cursor: onClick ? 'pointer' : 'default', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: active ? 'translateY(-2px)' : 'none', boxShadow: active ? `0 10px 25px -5px ${color}30` : 'none' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}15`, color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${color}30`, boxShadow: `0 0 15px ${color}20` }}>
-        <Icon size={20} />
-      </div>
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: `${color}15`, color: color, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${color}30`, boxShadow: `0 0 15px ${color}20` }}><Icon size={20} /></div>
       {active && <div style={{ fontSize: 10, background: color, color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>SELECTED</div>}
-      {sparkData && !active && (
-        <div style={{ width: 80, height: 40 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={sparkData}>
-              <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} filter="url(#neonGlow)" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {sparkData && !active && (<div style={{ width: 80, height: 40 }}><ResponsiveContainer width="100%" height="100%"><LineChart data={sparkData}><Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} filter="url(#neonGlow)" /></LineChart></ResponsiveContainer></div>)}
     </div>
-    
     <div>
       <div style={{ fontSize: 11, color: THEME.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
-        <span style={{ fontSize: 26, fontWeight: 700, color: THEME.textMain, fontFamily: 'monospace', letterSpacing: '-0.5px' }}>{value}</span>
-        {unit && <span style={{ fontSize: 12, color: THEME.textMuted }}>{unit}</span>}
+        <span style={{ fontSize: 26, fontWeight: 700, color: THEME.textMain, fontFamily: 'monospace', letterSpacing: '-0.5px' }}>{value}</span>{unit && <span style={{ fontSize: 12, color: THEME.textMuted }}>{unit}</span>}
       </div>
       {subtitle && <div style={{ fontSize: 11, color: THEME.textMuted, marginTop: 4 }}>{subtitle}</div>}
     </div>
@@ -670,9 +388,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         {payload.map((entry, index) => (
           <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: entry.color, boxShadow: `0 0 8px ${entry.color}` }} />
-            <span style={{ fontSize: 12, color: '#fff', fontFamily: 'monospace' }}>
-              {entry.name}: <span style={{ fontWeight: 700 }}>{typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}</span>
-            </span>
+            <span style={{ fontSize: 12, color: '#fff', fontFamily: 'monospace' }}>{entry.name}: <span style={{ fontWeight: 700 }}>{typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}</span></span>
           </div>
         ))}
       </div>
@@ -694,104 +410,44 @@ const ResourceGauge = ({ label, value, color }) => {
   const data = [{ name: 'L', value: value, fill: color }];
   return (
     <div style={{ position: 'relative', height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <RadialBarChart innerRadius="70%" outerRadius="100%" barSize={10} data={data} startAngle={180} endAngle={0}>
-          <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-          <RadialBar background clockWise dataKey="value" cornerRadius={10} />
-        </RadialBarChart>
-      </ResponsiveContainer>
-      <div style={{ position: 'absolute', top: '60%', transform: 'translateY(-50%)', textAlign: 'center' }}>
-        <div style={{ fontSize: 24, fontWeight: 700, color: THEME.textMain, fontFamily: 'monospace' }}>{value}%</div>
-        <div style={{ fontSize: 11, color: THEME.textMuted, textTransform: 'uppercase' }}>{label}</div>
-      </div>
+      <ResponsiveContainer width="100%" height="100%"><RadialBarChart innerRadius="70%" outerRadius="100%" barSize={10} data={data} startAngle={180} endAngle={0}><PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} /><RadialBar background clockWise dataKey="value" cornerRadius={10} /></RadialBarChart></ResponsiveContainer>
+      <div style={{ position: 'absolute', top: '60%', transform: 'translateY(-50%)', textAlign: 'center' }}><div style={{ fontSize: 24, fontWeight: 700, color: THEME.textMain, fontFamily: 'monospace' }}>{value}%</div><div style={{ fontSize: 11, color: THEME.textMuted, textTransform: 'uppercase' }}>{label}</div></div>
     </div>
   );
 };
 
 const AIAgentView = ({ type, data }) => {
-    if (!data) return (
-      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}>
-        <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Terminal size={24} />
-        </div>
-        <p style={{ fontSize: 13 }}>Select an item to analyze.</p>
-      </div>
-    );
-    
+    if (!data) return (<div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: THEME.textMuted, flexDirection: 'column', gap: 12, textAlign: 'center', opacity: 0.6 }}><div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Terminal size={24} /></div><p style={{ fontSize: 13 }}>Select an item to analyze.</p></div>);
     const renderSqlContext = () => {
       if (type === 'api') {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {data.queries.map((q, i) => (
               <div key={i} style={{ borderBottom: `1px solid ${THEME.grid}`, paddingBottom: 12, marginBottom: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: THEME.textMuted, fontSize: 11, marginBottom: 4 }}>
-                  <span>{q.calls} Executions</span>
-                  <span>{q.duration}ms</span>
-                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: THEME.textMuted, fontSize: 11, marginBottom: 4 }}><span>{q.calls} Executions</span><span>{q.duration}ms</span></div>
                 <div style={{ color: '#fff' }}>{q.sql}</div>
               </div>
             ))}
           </div>
         );
       }
-      
       if (type === 'missing') {
-        return (
-          <>
-            <div style={{ color: THEME.textMuted, marginBottom: 8 }}>-- Suggested Fix: Create Index</div>
-            <div style={{ color: THEME.success }}>
-              CREATE INDEX CONCURRENTLY idx_{data.table}_{data.column} <br/>
-              ON {data.table} ({data.column});
-            </div>
-            <div style={{ color: THEME.textMuted, marginTop: 16 }}>-- Impact Analysis</div>
-            <div>Scans Reduced: {data.improvement}</div>
-            <div>Est. Storage: ~24MB</div>
-          </>
-        );
+        return (<><div style={{ color: THEME.textMuted, marginBottom: 8 }}>-- Suggested Fix: Create Index</div><div style={{ color: THEME.success }}>CREATE INDEX CONCURRENTLY idx_{data.table}_{data.column} <br/>ON {data.table} ({data.column});</div><div style={{ color: THEME.textMuted, marginTop: 16 }}>-- Impact Analysis</div><div>Scans Reduced: {data.improvement}</div><div>Est. Storage: ~24MB</div></>);
       }
-
       if (type === 'unused') {
-        return (
-          <>
-            <div style={{ color: THEME.textMuted, marginBottom: 8 }}>-- Suggested Fix: Drop Unused Index</div>
-            <div style={{ color: THEME.danger }}>
-              DROP INDEX CONCURRENTLY {data.indexName};
-            </div>
-            <div style={{ color: THEME.textMuted, marginTop: 16 }}>-- Storage Reclaimed</div>
-            <div>Size: {data.size}</div>
-            <div>Last Access: {data.lastUsed}</div>
-          </>
-        );
+        return (<><div style={{ color: THEME.textMuted, marginBottom: 8 }}>-- Suggested Fix: Drop Unused Index</div><div style={{ color: THEME.danger }}>DROP INDEX CONCURRENTLY {data.indexName};</div><div style={{ color: THEME.textMuted, marginTop: 16 }}>-- Storage Reclaimed</div><div>Size: {data.size}</div><div>Last Access: {data.lastUsed}</div></>);
       }
       return <>{data.problem_query || "Query optimization suggested..."}</>;
     };
-    
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
         <div style={{ background: 'rgba(168, 85, 247, 0.1)', border: `1px solid ${THEME.ai}40`, borderRadius: 12, padding: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <div style={{ width: 24, height: 24, background: THEME.ai, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px ${THEME.ai}60` }}>
-              <Zap size={14} color="white" fill="white" />
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span>
-          </div>
-          <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>
-              {type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}><div style={{ width: 24, height: 24, background: THEME.ai, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px ${THEME.ai}60` }}><Zap size={14} color="white" fill="white" /></div><span style={{ fontSize: 13, fontWeight: 700, color: THEME.ai, letterSpacing: '0.5px' }}>AI ANALYSIS</span></div>
+          <p style={{ fontSize: 13, lineHeight: 1.6, color: THEME.textMain, margin: 0 }}>{type === 'api' ? data.ai_insight : (data.recommendation || 'Analysis complete.')}</p>
         </div>
-
         <div style={{ flex: 1, background: '#0f172a', borderRadius: 12, border: `1px solid ${THEME.grid}`, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ background: '#1e293b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${THEME.grid}` }}>
-            <span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>CONTEXT.sql</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></div>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }}></div>
-            </div>
-          </div>
-          <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1, overflowY: 'auto' }}>
-              {renderSqlContext()}
-          </div>
+          <div style={{ background: '#1e293b', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${THEME.grid}` }}><span style={{ fontSize: 11, color: THEME.textMuted, fontFamily: 'monospace' }}>CONTEXT.sql</span><div style={{ display: 'flex', gap: 6 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></div><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }}></div><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }}></div></div></div>
+          <div style={{ padding: 16, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: '#a5b4fc', lineHeight: 1.6, flex: 1, overflowY: 'auto' }}>{renderSqlContext()}</div>
         </div>
       </div>
     );
@@ -799,24 +455,15 @@ const AIAgentView = ({ type, data }) => {
 
 const EmptyState = ({ icon: Icon, text }) => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: THEME.textMuted, gap: 16, opacity: 0.7 }}>
-    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Icon size={32} />
-    </div>
+    <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon size={32} /></div>
     <div>{text}</div>
   </div>
 );
 
 // --- TABS ---
 const UserManagementTab = ({ users, onCreateUser, onDeleteUser }) => {
-    const [formData, setFormData] = useState({ 
-        name: '', email: '', password: '', accessLevel: 'read', 
-        allowedScreens: { overview: true, performance: false, resources: false, reliability: false, indexes: false, api: false } 
-    });
-
-    const handleScreenChange = (screen) => {
-        setFormData(prev => ({ ...prev, allowedScreens: { ...prev.allowedScreens, [screen]: !prev.allowedScreens[screen] } }));
-    };
-
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', accessLevel: 'read', allowedScreens: { overview: true, performance: false, resources: false, reliability: false, indexes: false, api: false } });
+    const handleScreenChange = (screen) => { setFormData(prev => ({ ...prev, allowedScreens: { ...prev.allowedScreens, [screen]: !prev.allowedScreens[screen] } })); };
     const handleSubmit = (e) => {
         e.preventDefault();
         const screenArray = Object.keys(formData.allowedScreens).filter(key => formData.allowedScreens[key]);
@@ -824,41 +471,14 @@ const UserManagementTab = ({ users, onCreateUser, onDeleteUser }) => {
         setFormData({ name: '', email: '', password: '', accessLevel: 'read', allowedScreens: { overview: true, performance: false, resources: false, reliability: false, indexes: false, api: false } });
         alert("User Created Successfully!");
     };
-
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 24, height: 'calc(100vh - 140px)' }}>
             <GlassCard title="Create New User" rightNode={<UserPlus size={16} color={THEME.success} />}>
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Full Name</label>
-                        <input required type="text" placeholder="John Doe" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ width: '100%', padding: 10, background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 6, color: 'white', outline: 'none' }} />
-                    </div>
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Login ID / Email</label>
-                        <input required type="text" placeholder="john.d" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={{ width: '100%', padding: 10, background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 6, color: 'white', outline: 'none' }} />
-                    </div>
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Access Level</label>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                            <button type="button" onClick={() => setFormData({...formData, accessLevel: 'read'})} style={{ flex: 1, padding: 10, borderRadius: 6, border: `1px solid ${formData.accessLevel === 'read' ? THEME.primary : THEME.grid}`, background: formData.accessLevel === 'read' ? 'rgba(14, 165, 233, 0.2)' : 'transparent', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                <Eye size={14} /> Read Only
-                            </button>
-                            <button type="button" onClick={() => setFormData({...formData, accessLevel: 'write'})} style={{ flex: 1, padding: 10, borderRadius: 6, border: `1px solid ${formData.accessLevel === 'write' ? THEME.success : THEME.grid}`, background: formData.accessLevel === 'write' ? 'rgba(16, 185, 129, 0.2)' : 'transparent', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                <Edit3 size={14} /> Read & Write
-                            </button>
-                        </div>
-                    </div>
-                    <div>
-                        <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>Allowed Screen Access</label>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                            {Object.keys(formData.allowedScreens).map(key => (
-                                <div key={key} onClick={() => handleScreenChange(key)} style={{ padding: '8px 12px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${formData.allowedScreens[key] ? THEME.secondary : THEME.grid}`, background: formData.allowedScreens[key] ? 'rgba(139, 92, 246, 0.2)' : 'transparent', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'white', textTransform: 'capitalize' }}>
-                                    <div style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${THEME.textMuted}`, background: formData.allowedScreens[key] ? THEME.secondary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{formData.allowedScreens[key] && <CheckCircle size={10} color="white" />}</div>
-                                    {key}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    <div><label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Full Name</label><input required type="text" placeholder="John Doe" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ width: '100%', padding: 10, background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 6, color: 'white', outline: 'none' }} /></div>
+                    <div><label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Login ID / Email</label><input required type="text" placeholder="john.d" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} style={{ width: '100%', padding: 10, background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 6, color: 'white', outline: 'none' }} /></div>
+                    <div><label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Access Level</label><div style={{ display: 'flex', gap: 12 }}><button type="button" onClick={() => setFormData({...formData, accessLevel: 'read'})} style={{ flex: 1, padding: 10, borderRadius: 6, border: `1px solid ${formData.accessLevel === 'read' ? THEME.primary : THEME.grid}`, background: formData.accessLevel === 'read' ? 'rgba(14, 165, 233, 0.2)' : 'transparent', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Eye size={14} /> Read Only</button><button type="button" onClick={() => setFormData({...formData, accessLevel: 'write'})} style={{ flex: 1, padding: 10, borderRadius: 6, border: `1px solid ${formData.accessLevel === 'write' ? THEME.success : THEME.grid}`, background: formData.accessLevel === 'write' ? 'rgba(16, 185, 129, 0.2)' : 'transparent', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Edit3 size={14} /> Read & Write</button></div></div>
+                    <div><label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 10 }}>Allowed Screen Access</label><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>{Object.keys(formData.allowedScreens).map(key => (<div key={key} onClick={() => handleScreenChange(key)} style={{ padding: '8px 12px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${formData.allowedScreens[key] ? THEME.secondary : THEME.grid}`, background: formData.allowedScreens[key] ? 'rgba(139, 92, 246, 0.2)' : 'transparent', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'white', textTransform: 'capitalize' }}><div style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${THEME.textMuted}`, background: formData.allowedScreens[key] ? THEME.secondary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{formData.allowedScreens[key] && <CheckCircle size={10} color="white" />}</div>{key}</div>))}</div></div>
                     <button type="submit" style={{ marginTop: 10, padding: 12, background: THEME.primary, border: 'none', borderRadius: 8, color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Create User</button>
                 </form>
             </GlassCard>
@@ -866,26 +486,8 @@ const UserManagementTab = ({ users, onCreateUser, onDeleteUser }) => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', height: '100%', paddingRight: 4 }}>
                     {users.map((u) => (
                         <div key={u.id} style={{ padding: 16, background: 'rgba(255,255,255,0.03)', border: `1px solid ${THEME.grid}`, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <div style={{ fontWeight: 'bold', fontSize: 14, color: 'white' }}>{u.name}</div>
-                                <div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>{u.email}</div>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                    <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: u.accessLevel === 'write' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(14, 165, 233, 0.2)', color: u.accessLevel === 'write' ? THEME.success : THEME.primary, border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        {u.accessLevel === 'write' ? 'Read & Write' : 'Read Only'}
-                                    </span>
-                                </div>
-                            </div>
-                            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end', maxWidth: 100 }}>
-                                    {u.allowedScreens.slice(0, 4).map(screen => (<div key={screen} style={{ width: 6, height: 6, borderRadius: '50%', background: THEME.secondary }} />))}
-                                    {u.allowedScreens.length > 4 && <span style={{ fontSize: 8, color: THEME.textMuted }}>+{u.allowedScreens.length - 4}</span>}
-                                </div>
-                                {u.id !== 1 && (
-                                    <button onClick={() => { if(window.confirm(`Delete user ${u.name}?`)) onDeleteUser(u.id); }} style={{ background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, borderRadius: 6, padding: 6, cursor: 'pointer', color: THEME.danger }}>
-                                        <Trash2 size={14} />
-                                    </button>
-                                )}
-                            </div>
+                            <div><div style={{ fontWeight: 'bold', fontSize: 14, color: 'white' }}>{u.name}</div><div style={{ fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>{u.email}</div><div style={{ display: 'flex', gap: 6 }}><span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: u.accessLevel === 'write' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(14, 165, 233, 0.2)', color: u.accessLevel === 'write' ? THEME.success : THEME.primary, border: '1px solid rgba(255,255,255,0.1)' }}>{u.accessLevel === 'write' ? 'Read & Write' : 'Read Only'}</span></div></div>
+                            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}><div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end', maxWidth: 100 }}>{u.allowedScreens.slice(0, 4).map(screen => (<div key={screen} style={{ width: 6, height: 6, borderRadius: '50%', background: THEME.secondary }} />))}{u.allowedScreens.length > 4 && <span style={{ fontSize: 8, color: THEME.textMuted }}>+{u.allowedScreens.length - 4}</span>}</div>{u.id !== 1 && (<button onClick={() => { if(window.confirm(`Delete user ${u.name}?`)) onDeleteUser(u.id); }} style={{ background: 'rgba(244, 63, 94, 0.1)', border: `1px solid ${THEME.danger}40`, borderRadius: 6, padding: 6, cursor: 'pointer', color: THEME.danger }}><Trash2 size={14} /></button>)}</div>
                         </div>
                     ))}
                 </div>
@@ -909,151 +511,55 @@ const UserProfileModal = ({ isOpen, onClose, currentUser, onUpdate }) => {
   const handleSave = (e) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API call
     setTimeout(() => {
-      onUpdate({
-        name: formData.name,
-        email: formData.email
-      });
+      onUpdate({ name: formData.name, email: formData.email });
       setLoading(false);
       onClose();
     }, 1000);
   };
 
   const TabButton = ({ id, label, icon: Icon }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      style={{
-        flex: 1,
-        padding: '12px',
-        background: activeTab === id ? 'rgba(14, 165, 233, 0.1)' : 'transparent',
-        border: 'none',
-        borderBottom: `2px solid ${activeTab === id ? THEME.primary : 'transparent'}`,
-        color: activeTab === id ? THEME.primary : THEME.textMuted,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        fontSize: 13,
-        fontWeight: 600,
-        transition: 'all 0.2s'
-      }}
-    >
+    <button onClick={() => setActiveTab(id)} style={{ flex: 1, padding: '12px', background: activeTab === id ? 'rgba(14, 165, 233, 0.1)' : 'transparent', border: 'none', borderBottom: `2px solid ${activeTab === id ? THEME.primary : 'transparent'}`, color: activeTab === id ? THEME.primary : THEME.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 13, fontWeight: 600, transition: 'all 0.2s' }}>
       <Icon size={16} /> {label}
     </button>
   );
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      background: 'rgba(2, 6, 23, 0.8)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center'
-    }}>
-      <div style={{
-        width: 500,
-        background: '#0f172a',
-        border: `1px solid ${THEME.grid}`,
-        borderRadius: 16,
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        overflow: 'hidden',
-        animation: 'fadeIn 0.3s ease'
-      }}>
-        {/* Header */}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(2, 6, 23, 0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 500, background: '#0f172a', border: `1px solid ${THEME.grid}`, borderRadius: 16, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', overflow: 'hidden', animation: 'fadeIn 0.3s ease' }}>
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${THEME.grid}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(2, 6, 23, 0.5)' }}>
-          <h2 style={{ margin: 0, fontSize: 18, color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <UserIcon size={20} color={THEME.primary} /> Edit Profile
-          </h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: THEME.textMuted, cursor: 'pointer' }}>
-            <X size={20} />
-          </button>
+          <h2 style={{ margin: 0, fontSize: 18, color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}><UserIcon size={20} color={THEME.primary} /> Edit Profile</h2>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: THEME.textMuted, cursor: 'pointer' }}><X size={20} /></button>
         </div>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: `1px solid ${THEME.grid}` }}>
-          <TabButton id="general" label="General" icon={UserIcon} />
-          <TabButton id="security" label="Security" icon={Shield} />
-          <TabButton id="prefs" label="Preferences" icon={Settings} />
-        </div>
-
-        {/* Content */}
+        <div style={{ display: 'flex', borderBottom: `1px solid ${THEME.grid}` }}><TabButton id="general" label="General" icon={UserIcon} /><TabButton id="security" label="Security" icon={Shield} /><TabButton id="prefs" label="Preferences" icon={Settings} /></div>
         <div style={{ padding: 24 }}>
           {activeTab === 'general' && (
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 10 }}>
-                <div style={{ width: 80, height: 80, borderRadius: '50%', background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 700, color: 'white', boxShadow: `0 0 20px ${THEME.primary}40` }}>
-                  {formData.name.charAt(0)}
-                </div>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{formData.name}</div>
-                  <div style={{ fontSize: 13, color: THEME.textMuted }}>{formData.role}</div>
-                  <button type="button" style={{ marginTop: 8, fontSize: 11, padding: '4px 10px', background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 4, color: THEME.primary, cursor: 'pointer' }}>Change Avatar</button>
-                </div>
+                <div style={{ width: 80, height: 80, borderRadius: '50%', background: `linear-gradient(135deg, ${THEME.primary}, ${THEME.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 700, color: 'white', boxShadow: `0 0 20px ${THEME.primary}40` }}>{formData.name.charAt(0)}</div>
+                <div><div style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>{formData.name}</div><div style={{ fontSize: 13, color: THEME.textMuted }}>{formData.role}</div><button type="button" style={{ marginTop: 8, fontSize: 11, padding: '4px 10px', background: 'rgba(255,255,255,0.05)', border: `1px solid ${THEME.grid}`, borderRadius: 4, color: THEME.primary, cursor: 'pointer' }}>Change Avatar</button></div>
               </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Full Name</label>
-                <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Email Address</label>
-                <input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} />
-              </div>
+              <div><label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Full Name</label><input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} /></div>
+              <div><label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Email Address</label><input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} /></div>
             </form>
           )}
-
           {activeTab === 'security' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div style={{ padding: 16, background: 'rgba(16, 185, 129, 0.1)', border: `1px solid ${THEME.success}40`, borderRadius: 8, display: 'flex', gap: 12 }}>
-                <Shield color={THEME.success} size={24} />
-                <div>
-                  <div style={{ color: THEME.success, fontWeight: 700, fontSize: 14 }}>Account is Secure</div>
-                  <div style={{ color: THEME.textMuted, fontSize: 12, marginTop: 4 }}>Two-factor authentication is currently active on your account.</div>
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Current Password</label>
-                <input type="password" placeholder="••••••••" style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>New Password</label>
-                <input type="password" placeholder="••••••••" style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} />
-              </div>
+              <div style={{ padding: 16, background: 'rgba(16, 185, 129, 0.1)', border: `1px solid ${THEME.success}40`, borderRadius: 8, display: 'flex', gap: 12 }}><Shield color={THEME.success} size={24} /><div><div style={{ color: THEME.success, fontWeight: 700, fontSize: 14 }}>Account is Secure</div><div style={{ color: THEME.textMuted, fontSize: 12, marginTop: 4 }}>Two-factor authentication is currently active on your account.</div></div></div>
+              <div><label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>Current Password</label><input type="password" placeholder="••••••••" style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} /></div>
+              <div><label style={{ display: 'block', fontSize: 12, color: THEME.textMuted, marginBottom: 6 }}>New Password</label><input type="password" placeholder="••••••••" style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', border: `1px solid ${THEME.grid}`, borderRadius: 8, color: 'white', outline: 'none' }} /></div>
             </div>
           )}
-
           {activeTab === 'prefs' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: `1px solid ${THEME.grid}` }}>
-                <div>
-                  <div style={{ color: 'white', fontSize: 14 }}>Email Notifications</div>
-                  <div style={{ color: THEME.textMuted, fontSize: 12 }}>Receive daily summaries</div>
-                </div>
-                <div style={{ width: 40, height: 20, background: THEME.primary, borderRadius: 10, position: 'relative', cursor: 'pointer' }}>
-                  <div style={{ width: 16, height: 16, background: 'white', borderRadius: '50%', position: 'absolute', top: 2, right: 2 }}></div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
-                <div>
-                  <div style={{ color: 'white', fontSize: 14 }}>Theme Mode</div>
-                  <div style={{ color: THEME.textMuted, fontSize: 12 }}>Sync with system</div>
-                </div>
-                <div style={{ color: THEME.textMuted, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-                   Dark (Default) <ChevronRight size={14} />
-                </div>
-              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: `1px solid ${THEME.grid}` }}><div><div style={{ color: 'white', fontSize: 14 }}>Email Notifications</div><div style={{ color: THEME.textMuted, fontSize: 12 }}>Receive daily summaries</div></div><div style={{ width: 40, height: 20, background: THEME.primary, borderRadius: 10, position: 'relative', cursor: 'pointer' }}><div style={{ width: 16, height: 16, background: 'white', borderRadius: '50%', position: 'absolute', top: 2, right: 2 }}></div></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}><div><div style={{ color: 'white', fontSize: 14 }}>Theme Mode</div><div style={{ color: THEME.textMuted, fontSize: 12 }}>Sync with system</div></div><div style={{ color: THEME.textMuted, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>Dark (Default) <ChevronRight size={14} /></div></div>
             </div>
           )}
         </div>
-
-        {/* Footer */}
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${THEME.grid}`, display: 'flex', justifyContent: 'flex-end', gap: 12, background: 'rgba(2, 6, 23, 0.3)' }}>
           <button onClick={onClose} style={{ padding: '10px 16px', borderRadius: 8, background: 'transparent', border: `1px solid ${THEME.grid}`, color: 'white', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={handleSave} disabled={loading} style={{ padding: '10px 20px', borderRadius: 8, background: THEME.primary, border: 'none', color: 'white', cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: loading ? 0.7 : 1 }}>
-            {loading ? 'Saving...' : 'Save Changes'}
-          </button>
+          <button onClick={handleSave} disabled={loading} style={{ padding: '10px 20px', borderRadius: 8, background: THEME.primary, border: 'none', color: 'white', cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: loading ? 0.7 : 1 }}>{loading ? 'Saving...' : 'Save Changes'}</button>
         </div>
       </div>
     </div>
@@ -1518,8 +1024,10 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
     { id: 'reliability', label: 'Reliability', icon: CheckCircle },
     { id: 'indexes', label: 'Indexes', icon: Layers },
     { id: 'api', label: 'API Tracing', icon: Network },
-    { id: 'admin', label: 'System Admin', icon: Shield }
-  ].filter(tab => currentUser?.allowedScreens?.includes(tab.id));
+    { id: 'admin', label: 'System Admin', icon: Shield },
+    // ADDED: Explicit Profile Item
+    { id: 'profile_modal', label: 'My Profile', icon: UserIcon }
+  ].filter(tab => currentUser?.allowedScreens?.includes(tab.id) || tab.id === 'profile_modal');
 
   const [activeTab, setActiveTab] = useState(availableTabs[0]?.id || 'overview');
   useEffect(() => {
@@ -1561,7 +1069,19 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
           {!isSidebarOpen && (<button onClick={() => setIsSidebarOpen(true)} style={{ marginTop: 12, background: 'transparent', border: 'none', color: THEME.textMuted, cursor: 'pointer', alignSelf: 'center' }}><ChevronRight size={18} /></button>)}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '16px 8px' }}>
              {availableTabs.map(item => (
-               <button key={item.id} onClick={() => { setActiveTab(item.id); setIndexViewMode(null); setReliabilityViewMode(null); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: isSidebarOpen ? '12px 16px' : '12px', justifyContent: isSidebarOpen ? 'flex-start' : 'center', background: activeTab === item.id ? `linear-gradient(90deg, ${THEME.primary}20, transparent)` : 'transparent', border: 'none', borderLeft: activeTab === item.id ? `3px solid ${THEME.primary}` : '3px solid transparent', color: activeTab === item.id ? THEME.primary : THEME.textMuted, cursor: 'pointer', fontSize: 14, fontWeight: 500, borderRadius: '0 8px 8px 0', transition: 'all 0.2s', position: 'relative' }} title={!isSidebarOpen ? item.label : ''}>
+               <button 
+                 key={item.id} 
+                 onClick={() => { 
+                    if (item.id === 'profile_modal') {
+                        setIsProfileOpen(true);
+                    } else {
+                        setActiveTab(item.id); 
+                        setIndexViewMode(null); 
+                        setReliabilityViewMode(null); 
+                    }
+                 }} 
+                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: isSidebarOpen ? '12px 16px' : '12px', justifyContent: isSidebarOpen ? 'flex-start' : 'center', background: activeTab === item.id && item.id !== 'profile_modal' ? `linear-gradient(90deg, ${THEME.primary}20, transparent)` : 'transparent', border: 'none', borderLeft: activeTab === item.id && item.id !== 'profile_modal' ? `3px solid ${THEME.primary}` : '3px solid transparent', color: activeTab === item.id && item.id !== 'profile_modal' ? THEME.primary : THEME.textMuted, cursor: 'pointer', fontSize: 14, fontWeight: 500, borderRadius: '0 8px 8px 0', transition: 'all 0.2s', position: 'relative' }} 
+                 title={!isSidebarOpen ? item.label : ''}>
                  <item.icon size={20} />{isSidebarOpen && <span>{item.label}</span>}
                </button>
              ))}
@@ -1572,7 +1092,7 @@ const PostgreSQLMonitor = ({ currentUser, onLogout, allUsers, onCreateUser, onDe
              </button>
              {isSidebarOpen && (
                 <div 
-                  onClick={() => setIsProfileOpen(true)} // Open profile on click
+                  onClick={() => setIsProfileOpen(true)} 
                   style={{ padding: '0 24px 24px', cursor: 'pointer', transition: 'opacity 0.2s' }}
                   onMouseEnter={(e) => e.currentTarget.style.opacity = 0.8}
                   onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
